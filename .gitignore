@@ -1,0 +1,13 @@
+node_modules
+.pnpm-store
+.env
+.env.*
+!.env.example
+dist
+coverage
+.next
+.DS_Store
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+apps/api/uploads
+*.log

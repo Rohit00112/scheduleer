@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  staff
+  viewer
+}
+
+enum ScheduleVersionStatus {
+  draft
+  validated
+  active
+  archived
+  failed
+}
+
+enum ImportJobStatus {
+  queued
+  processing
+  completed
+  failed
+}
+
+enum ConflictSeverity {
+  error
+  warning
+}
+
+enum ConflictType {
+  room
+  lecturer
+  group
+  overlap
+  invalid
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  role           UserRole
+  displayName    String    @map("display_name")
+  lecturerAliases String[] @default([]) @map("lecturer_aliases")
+  preferredWorkspace String? @map("preferred_workspace")
+  timezone       String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  scheduleVersions ScheduleVersion[] @relation("CreatedBy")
+  auditLogs       AuditLog[]
+  lecturerMappings UserLecturerMapping[]
+  notifications  Notification[]
+
+  @@map("users")
+}
+
+model ScheduleTerm {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  timezone   String
+  startDate  DateTime? @map("start_date")
+  endDate    DateTime? @map("end_date")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  versions ScheduleVersion[]
+
+  @@map("schedule_terms")
+}
+
+model ScheduleVersion {
+  id             String                @id @default(uuid())
+  termId         String                @map("term_id")
+  sourceFileName String                @map("source_file_name")
+  sourceChecksum String                @map("source_checksum")
+  status         ScheduleVersionStatus @default(draft)
+  createdById    String?               @map("created_by")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  activatedAt    DateTime?             @map("activated_at")
+
+  term          ScheduleTerm      @relation(fields: [termId], references: [id])
+  createdBy     User?             @relation("CreatedBy", fields: [createdById], references: [id])
+  importJobs    ImportJob[]
+  weeklySessions SessionWeekly[]
+  exceptionSessions SessionException[]
+  conflicts     Conflict[]
+
+  @@index([termId])
+  @@index([status])
+  @@map("schedule_versions")
+}
+
+model ImportJob {
+  id         String         @id @default(uuid())
+  versionId  String         @map("version_id")
+  status     ImportJobStatus @default(queued)
+  progress   Int            @default(0)
+  summaryJson Json?         @map("summary_json")
+  errorJson  Json?          @map("error_json")
+  startedAt  DateTime?      @map("started_at")
+  finishedAt DateTime?      @map("finished_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  version ScheduleVersion @relation(fields: [versionId], references: [id])
+
+  @@index([versionId])
+  @@map("import_jobs")
+}
+
+model Room {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  block     String?
+  level     String?
+  capacity  Int?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  weeklySessions SessionWeekly[]
+  exceptionSessions SessionException[]
+
+  @@map("rooms")
+}
+
+model Module {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  title          String
+  courseCode     String?  @map("course_code")
+  yearLevel      String?  @map("year_level")
+  specialization String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  weeklySessions SessionWeekly[]
+  exceptionSessions SessionException[]
+
+  @@map("modules")
+}
+
+model Lecturer {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @unique @map("normalized_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  weeklySessions SessionWeekly[]
+  exceptionSessions SessionException[]
+  userMappings   UserLecturerMapping[]
+
+  @@map("lecturers")
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  label     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sessionLinks SessionGroup[]
+
+  @@map("groups")
+}
+
+model SessionWeekly {
+  id          String   @id @default(uuid())
+  versionId   String   @map("version_id")
+  weeklyDay   Int      @map("weekly_day")
+  startMinute Int      @map("start_minute")
+  endMinute   Int      @map("end_minute")
+  classType   String   @map("class_type")
+  moduleId    String?  @map("module_id")
+  lecturerId  String?  @map("lecturer_id")
+  roomId      String   @map("room_id")
+  block       String?
+  level       String?
+  sourceSheet String   @map("source_sheet")
+  sourceRow   Int      @map("source_row")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  version  ScheduleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  module   Module?         @relation(fields: [moduleId], references: [id])
+  lecturer Lecturer?       @relation(fields: [lecturerId], references: [id])
+  room     Room            @relation(fields: [roomId], references: [id])
+  groups   SessionGroup[]
+
+  @@index([versionId])
+  @@index([weeklyDay, startMinute, endMinute])
+  @@index([roomId])
+  @@index([lecturerId])
+  @@map("sessions_weekly")
+}
+
+model SessionGroup {
+  sessionId String @map("session_id")
+  groupId   String @map("group_id")
+
+  session SessionWeekly @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  group   Group         @relation(fields: [groupId], references: [id])
+
+  @@id([sessionId, groupId])
+  @@index([groupId])
+  @@map("session_groups")
+}
+
+model SessionException {
+  id             String   @id @default(uuid())
+  versionId      String   @map("version_id")
+  occurrenceDate DateTime @map("occurrence_date")
+  startMinute    Int      @map("start_minute")
+  endMinute      Int      @map("end_minute")
+  classType      String   @map("class_type")
+  moduleId       String?  @map("module_id")
+  lecturerId     String?  @map("lecturer_id")
+  roomId         String   @map("room_id")
+  isCancelled    Boolean  @default(false) @map("is_cancelled")
+  block          String?
+  level          String?
+  sourceSheet    String   @map("source_sheet")
+  sourceRow      Int      @map("source_row")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  version  ScheduleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  module   Module?         @relation(fields: [moduleId], references: [id])
+  lecturer Lecturer?       @relation(fields: [lecturerId], references: [id])
+  room     Room            @relation(fields: [roomId], references: [id])
+
+  @@index([versionId])
+  @@index([occurrenceDate, startMinute, endMinute])
+  @@index([roomId])
+  @@index([lecturerId])
+  @@map("sessions_exceptions")
+}
+
+model Conflict {
+  id         String           @id @default(uuid())
+  versionId  String           @map("version_id")
+  type       ConflictType
+  severity   ConflictSeverity
+  entityKey  String           @map("entity_key")
+  detailsJson Json?           @map("details_json")
+  resolved   Boolean          @default(false)
+  sourceSheet String?         @map("source_sheet")
+  sourceRow  Int?             @map("source_row")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  version ScheduleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@index([type])
+  @@index([severity])
+  @@map("conflicts")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?  @map("actor_user_id")
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id")
+  metaJson    Json?    @map("meta_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actorUser User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId])
+  @@map("audit_logs")
+}
+
+model UserLecturerMapping {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  lecturerId String   @map("lecturer_id")
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lecturerId])
+  @@index([userId])
+  @@index([lecturerId])
+  @@map("user_lecturer_mappings")
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  type        String
+  title       String
+  message     String
+  payloadJson Json?     @map("payload_json")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailLogs EmailDeliveryLog[]
+
+  @@index([userId, createdAt])
+  @@index([readAt])
+  @@map("notifications")
+}
+
+model AlertRule {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  enabled        Boolean  @default(true)
+  triggerType    String   @map("trigger_type")
+  channelInApp   Boolean  @default(true) @map("channel_in_app")
+  channelEmail   Boolean  @default(false) @map("channel_email")
+  configJson     Json?    @map("config_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled])
+  @@map("alert_rules")
+}
+
+model EmailDeliveryLog {
+  id                String   @id @default(uuid())
+  notificationId    String?  @map("notification_id")
+  recipient         String
+  status            String
+  providerMessageId String?  @map("provider_message_id")
+  error             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([notificationId])
+  @@index([status])
+  @@map("email_delivery_logs")
+}
