@@ -498,6 +498,112 @@ thead th {
   gap: 0.7rem;
 }
 
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 0.16rem 0.48rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.status-good {
+  background: color-mix(in srgb, #1c7c5f 24%, white);
+  color: #155443;
+}
+
+.status-warn {
+  background: color-mix(in srgb, #c78326 20%, white);
+  color: #7d4b0d;
+}
+
+.status-bad {
+  background: color-mix(in srgb, #bc3f3f 20%, white);
+  color: #7d1f1f;
+}
+
+.status-neutral {
+  background: color-mix(in srgb, #5f7284 16%, white);
+  color: #324757;
+}
+
+.governance-form-panel {
+  padding: 0.95rem;
+}
+
+.governance-form-panel > header,
+.governance-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.governance-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.2fr) minmax(320px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.governance-table-card,
+.governance-detail-card {
+  padding: 0.8rem;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.json-panel {
+  margin: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.7rem;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.segmented button {
+  background: #fff;
+  color: var(--ink);
+  border: none;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.segmented button:last-child {
+  border-right: none;
+}
+
+.segmented button.active {
+  background: linear-gradient(130deg, var(--accent-2), #fff);
+}
+
+.inline-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.button-danger {
+  background: linear-gradient(130deg, #b53a3a, #e47777);
+  border-color: rgba(142, 32, 32, 0.6);
+}
+
 @media (max-width: 1024px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -514,6 +620,10 @@ thead th {
 
   .workspace-header {
     padding-top: 0.75rem;
+  }
+
+  .governance-layout {
+    grid-template-columns: 1fr;
   }
 }
 

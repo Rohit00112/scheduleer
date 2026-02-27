@@ -1,12 +1,15 @@
 export const IMPORT_SCHEDULE_QUEUE = "imports-schedule";
 export const EMAIL_ALERT_QUEUE = "alerts-email";
+export const REQUEST_EVALUATION_QUEUE = "requests-evaluation";
+export const APPROVAL_NOTIFICATION_QUEUE = "approvals-notifications";
 
 export const REDIS_CHANNELS = {
   import: "events:import",
   schedule: "events:schedule",
   rooms: "events:rooms",
   notifications: "events:notifications",
-  analytics: "events:analytics"
+  analytics: "events:analytics",
+  governance: "events:governance"
 } as const;
 
 export const CACHE_KEYS = {

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { BullModule } from "@nestjs/bullmq";
 import { AlertsWorkerModule } from "./alerts/alerts-worker.module";
+import { GovernanceWorkerModule } from "./governance/governance-worker.module";
 import { ImportsWorkerModule } from "./imports/imports-worker.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
@@ -30,7 +31,8 @@ function redisConnection(configService: ConfigService): { host: string; port: nu
     RedisModule,
     RealtimePublisherModule,
     AlertsWorkerModule,
-    ImportsWorkerModule
+    ImportsWorkerModule,
+    GovernanceWorkerModule
   ]
 })
 export class WorkerAppModule {}

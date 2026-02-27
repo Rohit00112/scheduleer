@@ -8,6 +8,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BoardModule } from "./board/board.module";
 import { CommonModule } from "./common/common.module";
 import { ConflictsModule } from "./conflicts/conflicts.module";
+import { GovernanceModule } from "./governance/governance.module";
 import { ImportsModule } from "./imports/imports.module";
 import { MappingsModule } from "./mappings/mappings.module";
 import { NotificationsModule } from "./notifications/notifications.module";
@@ -55,7 +56,8 @@ function redisConnection(configService: ConfigService): { host: string; port: nu
     AdminModule,
     PortalModule,
     RoomsModule,
-    ConflictsModule
+    ConflictsModule,
+    GovernanceModule
   ],
   controllers: [AppController]
 })

@@ -41,35 +41,84 @@ enum ConflictType {
   invalid
 }
 
-model User {
-  id             String    @id @default(uuid())
-  email          String    @unique
-  passwordHash   String    @map("password_hash")
-  role           UserRole
-  displayName    String    @map("display_name")
-  lecturerAliases String[] @default([]) @map("lecturer_aliases")
-  preferredWorkspace String? @map("preferred_workspace")
-  timezone       String?
-  active         Boolean   @default(true)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+enum PermissionScopeType {
+  request
+  approval
+  policy
+}
 
-  scheduleVersions ScheduleVersion[] @relation("CreatedBy")
-  auditLogs       AuditLog[]
-  lecturerMappings UserLecturerMapping[]
-  notifications  Notification[]
+enum ChangeRequestType {
+  schedule_change
+  room_booking
+}
+
+enum ChangeRequestStatus {
+  draft
+  submitted
+  pending_approval
+  approved
+  rejected
+  blocked
+}
+
+enum ApprovalFlowStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ApprovalStepStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PolicyTarget {
+  request_create
+  request_submit
+  approval_decide
+}
+
+enum PolicyEffect {
+  allow
+  deny
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String   @map("password_hash")
+  role               UserRole
+  displayName        String   @map("display_name")
+  lecturerAliases    String[] @default([]) @map("lecturer_aliases")
+  preferredWorkspace String?  @map("preferred_workspace")
+  timezone           String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  scheduleVersions  ScheduleVersion[]     @relation("CreatedBy")
+  auditLogs         AuditLog[]
+  lecturerMappings  UserLecturerMapping[]
+  notifications     Notification[]
+  requestedChanges  ChangeRequest[]       @relation("RequestedChanges")
+  submittedChanges  ChangeRequest[]       @relation("SubmittedChanges")
+  approvalSteps     ApprovalStep[]        @relation("ApprovalSteps")
+  userScopes        UserScope[]
+  createdPolicies   PolicyRule[]          @relation("PolicyCreatedBy")
+  policyEvaluations PolicyEvaluationLog[] @relation("PolicyActor")
 
   @@map("users")
 }
 
 model ScheduleTerm {
-  id         String   @id @default(uuid())
-  name       String   @unique
-  timezone   String
-  startDate  DateTime? @map("start_date")
-  endDate    DateTime? @map("end_date")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id        String    @id @default(uuid())
+  name      String    @unique
+  timezone  String
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   versions ScheduleVersion[]
 
@@ -86,12 +135,12 @@ model ScheduleVersion {
   createdAt      DateTime              @default(now()) @map("created_at")
   activatedAt    DateTime?             @map("activated_at")
 
-  term          ScheduleTerm      @relation(fields: [termId], references: [id])
-  createdBy     User?             @relation("CreatedBy", fields: [createdById], references: [id])
-  importJobs    ImportJob[]
-  weeklySessions SessionWeekly[]
+  term              ScheduleTerm       @relation(fields: [termId], references: [id])
+  createdBy         User?              @relation("CreatedBy", fields: [createdById], references: [id])
+  importJobs        ImportJob[]
+  weeklySessions    SessionWeekly[]
   exceptionSessions SessionException[]
-  conflicts     Conflict[]
+  conflicts         Conflict[]
 
   @@index([termId])
   @@index([status])
@@ -99,15 +148,15 @@ model ScheduleVersion {
 }
 
 model ImportJob {
-  id         String         @id @default(uuid())
-  versionId  String         @map("version_id")
-  status     ImportJobStatus @default(queued)
-  progress   Int            @default(0)
-  summaryJson Json?         @map("summary_json")
-  errorJson  Json?          @map("error_json")
-  startedAt  DateTime?      @map("started_at")
-  finishedAt DateTime?      @map("finished_at")
-  createdAt  DateTime       @default(now()) @map("created_at")
+  id          String          @id @default(uuid())
+  versionId   String          @map("version_id")
+  status      ImportJobStatus @default(queued)
+  progress    Int             @default(0)
+  summaryJson Json?           @map("summary_json")
+  errorJson   Json?           @map("error_json")
+  startedAt   DateTime?       @map("started_at")
+  finishedAt  DateTime?       @map("finished_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
 
   version ScheduleVersion @relation(fields: [versionId], references: [id])
 
@@ -125,7 +174,7 @@ model Room {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  weeklySessions SessionWeekly[]
+  weeklySessions    SessionWeekly[]
   exceptionSessions SessionException[]
 
   @@map("rooms")
@@ -141,7 +190,7 @@ model Module {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  weeklySessions SessionWeekly[]
+  weeklySessions    SessionWeekly[]
   exceptionSessions SessionException[]
 
   @@map("modules")
@@ -154,9 +203,9 @@ model Lecturer {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  weeklySessions SessionWeekly[]
+  weeklySessions    SessionWeekly[]
   exceptionSessions SessionException[]
-  userMappings   UserLecturerMapping[]
+  userMappings      UserLecturerMapping[]
 
   @@map("lecturers")
 }
@@ -243,16 +292,16 @@ model SessionException {
 }
 
 model Conflict {
-  id         String           @id @default(uuid())
-  versionId  String           @map("version_id")
-  type       ConflictType
-  severity   ConflictSeverity
-  entityKey  String           @map("entity_key")
-  detailsJson Json?           @map("details_json")
-  resolved   Boolean          @default(false)
-  sourceSheet String?         @map("source_sheet")
-  sourceRow  Int?             @map("source_row")
-  createdAt  DateTime         @default(now()) @map("created_at")
+  id          String           @id @default(uuid())
+  versionId   String           @map("version_id")
+  type        ConflictType
+  severity    ConflictSeverity
+  entityKey   String           @map("entity_key")
+  detailsJson Json?            @map("details_json")
+  resolved    Boolean          @default(false)
+  sourceSheet String?          @map("source_sheet")
+  sourceRow   Int?             @map("source_row")
+  createdAt   DateTime         @default(now()) @map("created_at")
 
   version ScheduleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
@@ -312,15 +361,15 @@ model Notification {
 }
 
 model AlertRule {
-  id             String   @id @default(uuid())
-  name           String   @unique
-  enabled        Boolean  @default(true)
-  triggerType    String   @map("trigger_type")
-  channelInApp   Boolean  @default(true) @map("channel_in_app")
-  channelEmail   Boolean  @default(false) @map("channel_email")
-  configJson     Json?    @map("config_json")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  name         String   @unique
+  enabled      Boolean  @default(true)
+  triggerType  String   @map("trigger_type")
+  channelInApp Boolean  @default(true) @map("channel_in_app")
+  channelEmail Boolean  @default(false) @map("channel_email")
+  configJson   Json?    @map("config_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([enabled])
   @@map("alert_rules")
@@ -340,4 +389,155 @@ model EmailDeliveryLog {
   @@index([notificationId])
   @@index([status])
   @@map("email_delivery_logs")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  role         UserRole
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([role, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserScope {
+  id         String              @id @default(uuid())
+  userId     String              @map("user_id")
+  scopeType  PermissionScopeType @map("scope_type")
+  scopeValue String              @map("scope_value")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scopeType, scopeValue])
+  @@index([userId, scopeType])
+  @@map("user_scopes")
+}
+
+model ChangeRequest {
+  id            String              @id @default(uuid())
+  type          ChangeRequestType
+  status        ChangeRequestStatus @default(draft)
+  title         String
+  description   String?
+  payloadJson   Json?               @map("payload_json")
+  requestedById String              @map("requested_by_id")
+  submittedById String?             @map("submitted_by_id")
+  submittedAt   DateTime?           @map("submitted_at")
+  decidedAt     DateTime?           @map("decided_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  requestedBy       User                   @relation("RequestedChanges", fields: [requestedById], references: [id], onDelete: Restrict)
+  submittedBy       User?                  @relation("SubmittedChanges", fields: [submittedById], references: [id], onDelete: SetNull)
+  approvalFlow      ApprovalFlow?
+  impactSnapshots   ChangeImpactSnapshot[]
+  policyEvaluations PolicyEvaluationLog[]
+
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@map("change_requests")
+}
+
+model ChangeImpactSnapshot {
+  id                String   @id @default(uuid())
+  requestId         String   @map("request_id")
+  riskScore         Int      @default(0) @map("risk_score")
+  blockingIssues    Int      @default(0) @map("blocking_issues")
+  warningIssues     Int      @default(0) @map("warning_issues")
+  impactSummaryJson Json     @map("impact_summary_json")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  request ChangeRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("change_impact_snapshots")
+}
+
+model ApprovalFlow {
+  id               String             @id @default(uuid())
+  requestId        String             @unique @map("request_id")
+  status           ApprovalFlowStatus @default(pending)
+  currentStepOrder Int                @default(1) @map("current_step_order")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  request ChangeRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  steps   ApprovalStep[]
+
+  @@map("approval_flows")
+}
+
+model ApprovalStep {
+  id             String             @id @default(uuid())
+  flowId         String             @map("flow_id")
+  stepOrder      Int                @map("step_order")
+  approverUserId String             @map("approver_user_id")
+  status         ApprovalStepStatus @default(pending)
+  decisionNote   String?            @map("decision_note")
+  decidedAt      DateTime?          @map("decided_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  flow         ApprovalFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  approverUser User         @relation("ApprovalSteps", fields: [approverUserId], references: [id], onDelete: Restrict)
+
+  @@unique([flowId, stepOrder])
+  @@index([approverUserId, status])
+  @@map("approval_steps")
+}
+
+model PolicyRule {
+  id             String       @id @default(uuid())
+  name           String       @unique
+  description    String?
+  target         PolicyTarget
+  effect         PolicyEffect @default(deny)
+  conditionsJson Json         @map("conditions_json")
+  enabled        Boolean      @default(true)
+  active         Boolean      @default(false)
+  priority       Int          @default(100)
+  createdById    String?      @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  createdBy   User?                 @relation("PolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  evaluations PolicyEvaluationLog[]
+
+  @@index([enabled, active, target, priority])
+  @@map("policy_rules")
+}
+
+model PolicyEvaluationLog {
+  id          String       @id @default(uuid())
+  policyId    String?      @map("policy_id")
+  requestId   String?      @map("request_id")
+  actorUserId String?      @map("actor_user_id")
+  target      PolicyTarget
+  allowed     Boolean
+  reason      String
+  contextJson Json?        @map("context_json")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  policy    PolicyRule?    @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  request   ChangeRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  actorUser User?          @relation("PolicyActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([policyId])
+  @@index([requestId])
+  @@index([actorUserId])
+  @@map("policy_evaluation_logs")
 }

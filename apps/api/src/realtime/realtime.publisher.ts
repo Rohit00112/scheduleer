@@ -25,4 +25,8 @@ export class RealtimePublisher {
   async publishAnalytics(event: string, payload: unknown, room?: string): Promise<void> {
     await this.redisService.publish(REDIS_CHANNELS.analytics, { event, payload, room });
   }
+
+  async publishGovernance(event: string, payload: unknown, room?: string): Promise<void> {
+    await this.redisService.publish(REDIS_CHANNELS.governance, { event, payload, room });
+  }
 }

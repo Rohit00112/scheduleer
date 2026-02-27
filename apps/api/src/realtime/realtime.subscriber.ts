@@ -27,7 +27,8 @@ export class RealtimeSubscriber implements OnModuleInit, OnModuleDestroy {
       REDIS_CHANNELS.schedule,
       REDIS_CHANNELS.rooms,
       REDIS_CHANNELS.notifications,
-      REDIS_CHANNELS.analytics
+      REDIS_CHANNELS.analytics,
+      REDIS_CHANNELS.governance
     );
 
     this.subscriber.on("message", (channel, message) => {

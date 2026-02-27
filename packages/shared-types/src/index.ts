@@ -242,3 +242,99 @@ export const RoomAnalyticsDtoSchema = z.object({
   idleHours: z.number()
 });
 export type RoomAnalyticsDto = z.infer<typeof RoomAnalyticsDtoSchema>;
+
+export const ChangeRequestTypeSchema = z.enum(["schedule_change", "room_booking"]);
+export type ChangeRequestType = z.infer<typeof ChangeRequestTypeSchema>;
+
+export const ChangeRequestStatusSchema = z.enum([
+  "draft",
+  "submitted",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "blocked"
+]);
+export type ChangeRequestStatus = z.infer<typeof ChangeRequestStatusSchema>;
+
+export const ChangeImpactSnapshotDtoSchema = z.object({
+  id: z.string(),
+  requestId: z.string(),
+  riskScore: z.number(),
+  blockingIssues: z.number(),
+  warningIssues: z.number(),
+  impactSummaryJson: z.unknown(),
+  createdAt: z.string()
+});
+export type ChangeImpactSnapshotDto = z.infer<typeof ChangeImpactSnapshotDtoSchema>;
+
+export const ChangeRequestDtoSchema = z.object({
+  id: z.string(),
+  type: ChangeRequestTypeSchema,
+  status: ChangeRequestStatusSchema,
+  title: z.string(),
+  description: z.string().nullable(),
+  payloadJson: z.unknown().nullable(),
+  requestedById: z.string(),
+  submittedById: z.string().nullable(),
+  submittedAt: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type ChangeRequestDto = z.infer<typeof ChangeRequestDtoSchema>;
+
+export const ApprovalStepStatusSchema = z.enum(["pending", "approved", "rejected"]);
+export type ApprovalStepStatus = z.infer<typeof ApprovalStepStatusSchema>;
+
+export const ApprovalStepDtoSchema = z.object({
+  id: z.string(),
+  flowId: z.string(),
+  stepOrder: z.number(),
+  approverUserId: z.string(),
+  status: ApprovalStepStatusSchema,
+  decisionNote: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+  createdAt: z.string()
+});
+export type ApprovalStepDto = z.infer<typeof ApprovalStepDtoSchema>;
+
+export const PolicyTargetSchema = z.enum(["request_create", "request_submit", "approval_decide"]);
+export type PolicyTarget = z.infer<typeof PolicyTargetSchema>;
+
+export const PolicyEffectSchema = z.enum(["allow", "deny"]);
+export type PolicyEffect = z.infer<typeof PolicyEffectSchema>;
+
+export const PolicyRuleDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  target: PolicyTargetSchema,
+  effect: PolicyEffectSchema,
+  conditionsJson: z.unknown(),
+  enabled: z.boolean(),
+  active: z.boolean(),
+  priority: z.number(),
+  createdById: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type PolicyRuleDto = z.infer<typeof PolicyRuleDtoSchema>;
+
+export const PolicySimulationResultDtoSchema = z.object({
+  policyId: z.string(),
+  policyName: z.string(),
+  target: PolicyTargetSchema,
+  allowed: z.boolean(),
+  reasons: z.array(z.string()),
+  decisions: z.array(
+    z.object({
+      policyId: z.string(),
+      policyName: z.string(),
+      effect: PolicyEffectSchema,
+      matched: z.boolean(),
+      allowed: z.boolean(),
+      reason: z.string()
+    })
+  )
+});
+export type PolicySimulationResultDto = z.infer<typeof PolicySimulationResultDtoSchema>;

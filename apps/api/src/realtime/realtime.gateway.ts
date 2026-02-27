@@ -108,6 +108,11 @@ export class RealtimeGateway implements OnGatewayConnection {
     }
   }
 
+  @SubscribeMessage("subscribe.governance")
+  onSubscribeGovernance(@ConnectedSocket() client: Socket): void {
+    client.join("governance");
+  }
+
   emit(event: string, payload: unknown, room?: string): void {
     if (room) {
       this.server.to(room).emit(event, payload);

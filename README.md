@@ -10,10 +10,10 @@ Monorepo timetable platform with:
 ## Workspace Layout
 
 - `apps/web`: route groups and separate shells.
-  - Admin: `/admin/dashboard`, `/admin/board`, `/admin/imports`, `/admin/versions`, `/admin/conflicts`, `/admin/users`, `/admin/mappings`, `/admin/analytics`, `/admin/notifications`.
+  - Admin: `/admin/dashboard`, `/admin/board`, `/admin/imports`, `/admin/versions`, `/admin/conflicts`, `/admin/requests`, `/admin/approvals`, `/admin/policies`, `/admin/users`, `/admin/mappings`, `/admin/analytics`, `/admin/notifications`.
   - Portal: `/portal/my-week`, `/portal/today`, `/portal/rooms`, `/portal/notifications`, `/portal/calendar`, `/portal/profile`.
 - `apps/api`: auth, imports, board API, mappings, notifications, analytics, calendar export, websocket realtime.
-- `apps/api/src/worker.ts`: worker process for import queue + email delivery queue.
+- `apps/api/src/worker.ts`: worker process for import queue, governance queues, and email delivery queue.
 - `packages/parser`: XLSX parser, normalization, conflict detection.
 - `packages/shared-types`: shared zod contracts.
 - `infra/docker`: dev/prod compose + Dockerfiles + nginx config.
@@ -37,6 +37,16 @@ Monorepo timetable platform with:
   - `board.updated`
   - `notification.created`
   - `analytics.refreshed`
+  - `request.created`
+  - `request.submitted`
+  - `approval.pending`
+  - `approval.decided`
+  - `policy.violation`
+- Governance core:
+  - governed request APIs (`/admin/requests/*`)
+  - approval queue APIs (`/admin/approvals/*`)
+  - policy studio APIs (`/admin/policies/*`)
+  - risk/impact snapshots and immutable audit trail on state transitions
 
 ## Local Development (without Docker)
 
@@ -97,6 +107,8 @@ New alert/email env vars:
 
 If SMTP is unset, in-app notifications still work and email logs are marked failed.
 
+For local Prisma migrations outside Docker, export `DATABASE_URL` first.
+
 ## Notes
 
 - Default timezone: `Asia/Kathmandu`.
@@ -104,4 +116,9 @@ If SMTP is unset, in-app notifications still work and email logs are marked fail
   - `schedule:active:*`
   - `rooms:availability:*`
   - `notifications:user:*`
+- BullMQ queues:
+  - `imports-schedule`
+  - `requests-evaluation`
+  - `approvals-notifications`
+  - `alerts-email`
 - Legacy routes (`/dashboard`, `/my-schedule`, `/rooms`, `/imports`, `/conflicts`) redirect to new workspace routes.
