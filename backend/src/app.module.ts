@@ -4,8 +4,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { Schedule } from './entities/schedule.entity';
 import { User } from './entities/user.entity';
+import { AuditLog } from './entities/audit-log.entity';
+import { Announcement } from './entities/announcement.entity';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { UsersModule } from './modules/users/users.module';
 import { join } from 'path';
 
 @Module({
@@ -13,11 +17,13 @@ import { join } from 'path';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: join(__dirname, '..', 'data', 'scheduler.db'),
-      entities: [Schedule, User],
+      entities: [Schedule, User, AuditLog, Announcement],
       synchronize: true,
     }),
     SchedulesModule,
     AuthModule,
+    AnnouncementsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

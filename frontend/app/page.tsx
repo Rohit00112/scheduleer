@@ -16,13 +16,24 @@ import {
   exportExcel,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useTheme } from "@/lib/theme-context";
 import FilterBar from "@/components/FilterBar";
 import ScheduleTable from "@/components/ScheduleTable";
 import TimetableView from "@/components/TimetableView";
 import ScheduleModal from "@/components/ScheduleModal";
 import InstructorView from "@/components/InstructorView";
+import ConflictsView from "@/components/ConflictsView";
+import WorkloadDashboard from "@/components/WorkloadDashboard";
+import RoomUtilization from "@/components/RoomUtilization";
+import UserManagement from "@/components/UserManagement";
+import AnnouncementsPanel from "@/components/AnnouncementsPanel";
+import AuditLogView from "@/components/AuditLogView";
+import GlobalSearch from "@/components/GlobalSearch";
+import DarkModeToggle from "@/components/DarkModeToggle";
+import AnnouncementsBanner from "@/components/AnnouncementsBanner";
+import ImportExport from "@/components/ImportExport";
 
-type AdminTab = "schedules" | "timetable" | "instructors";
+type AdminTab = "schedules" | "timetable" | "instructors" | "conflicts" | "workload" | "rooms" | "users" | "announcements" | "audit" | "import-export";
 
 export default function Home() {
   const { user, loading: authLoading, isAdmin, logout } = useAuth();
@@ -152,78 +163,58 @@ export default function Home() {
   // ============ ADMIN INTERFACE ============
   if (isAdmin) {
     return (
-      <div className="min-h-screen bg-gray-100 flex">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen sticky top-0 h-screen">
-          <div className="p-5 border-b border-gray-200">
-            <h1 className="text-lg font-bold text-gray-900">Schedule Manager</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Admin Dashboard</p>
+        <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col min-h-screen sticky top-0 h-screen">
+          <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">Schedule Manager</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Admin Dashboard</p>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1">
-            <button
-              onClick={() => setAdminTab("schedules")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${adminTab === "schedules"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-50"
-                }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-              Schedules
-            </button>
-            <button
-              onClick={() => setAdminTab("timetable")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${adminTab === "timetable"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-50"
-                }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Timetable
-            </button>
-            <button
-              onClick={() => setAdminTab("instructors")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${adminTab === "instructors"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-50"
-                }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Instructors
-            </button>
-
-            <div className="pt-4 mt-4 border-t border-gray-200">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {[
+              { id: "schedules" as AdminTab, label: "Schedules", icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
+              { id: "timetable" as AdminTab, label: "Timetable", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+              { id: "instructors" as AdminTab, label: "Instructors", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
+              { id: "conflicts" as AdminTab, label: "Conflicts", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" },
+              { id: "workload" as AdminTab, label: "Workload", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+              { id: "rooms" as AdminTab, label: "Room Utilization", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+              { id: "users" as AdminTab, label: "Users", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
+              { id: "announcements" as AdminTab, label: "Announcements", icon: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" },
+              { id: "audit" as AdminTab, label: "Audit Log", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
+              { id: "import-export" as AdminTab, label: "Import/Export", icon: "M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" },
+            ].map((tab) => (
               <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50"
+                key={tab.id}
+                onClick={() => setAdminTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${adminTab === tab.id
+                  ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                  : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800"
+                  }`}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
                 </svg>
-                {exporting ? "Exporting..." : "Export Excel"}
+                {tab.label}
               </button>
-            </div>
+            ))}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">{user.username}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.username}</p>
                 <p className="text-xs text-amber-600 font-medium">Admin</p>
               </div>
-              <button
-                onClick={logout}
-                className="text-sm text-red-600 hover:text-red-800 font-medium"
-              >
-                Logout
-              </button>
+              <div className="flex items-center gap-2">
+                <DarkModeToggle />
+                <button
+                  onClick={logout}
+                  className="text-sm text-red-600 hover:text-red-800 font-medium"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </aside>
@@ -231,19 +222,29 @@ export default function Home() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           {/* Top bar */}
-          <header className="bg-white border-b border-gray-200 px-6 py-4">
+          <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {adminTab === "schedules" && "Schedule Management"}
                   {adminTab === "timetable" && "Timetable View"}
                   {adminTab === "instructors" && "Instructor Overview"}
+                  {adminTab === "conflicts" && "Conflict Detection"}
+                  {adminTab === "workload" && "Instructor Workload"}
+                  {adminTab === "rooms" && "Room Utilization"}
+                  {adminTab === "users" && "User Management"}
+                  {adminTab === "announcements" && "Announcements"}
+                  {adminTab === "audit" && "Audit Log"}
+                  {adminTab === "import-export" && "Import / Export"}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   London Metropolitan University &mdash; Spring 2026
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <div className="w-72">
+                  <GlobalSearch schedules={schedules} />
+                </div>
                 {adminTab === "schedules" && (
                   <button
                     onClick={() => {
@@ -334,6 +335,15 @@ export default function Home() {
                     onEdit={handleEdit}
                   />
                 )}
+                {adminTab === "conflicts" && <ConflictsView />}
+                {adminTab === "workload" && <WorkloadDashboard schedules={schedules} />}
+                {adminTab === "rooms" && <RoomUtilization schedules={schedules} />}
+                {adminTab === "users" && <UserManagement />}
+                {adminTab === "announcements" && <AnnouncementsPanel />}
+                {adminTab === "audit" && <AuditLogView />}
+                {adminTab === "import-export" && (
+                  <ImportExport onImportComplete={() => { loadSchedules(); loadFilterOptions(); }} />
+                )}
               </>
             )}
           </main>
@@ -358,25 +368,28 @@ export default function Home() {
 
   // ============ NORMAL USER INTERFACE ============
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm border-b border-gray-200">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 Schedule Viewer
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 London Metropolitan University &mdash; Spring 2026
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex bg-gray-100 rounded-lg p-1">
+              <div className="w-64">
+                <GlobalSearch schedules={schedules} />
+              </div>
+              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                 <button
                   onClick={() => setUserView("table")}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${userView === "table"
-                    ? "bg-white shadow-sm text-gray-900"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
                     }`}
                 >
                   Table
@@ -384,17 +397,18 @@ export default function Home() {
                 <button
                   onClick={() => setUserView("timetable")}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${userView === "timetable"
-                    ? "bg-white shadow-sm text-gray-900"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
                     }`}
                 >
                   Timetable
                 </button>
               </div>
-              <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200">
-                <span className="text-sm text-gray-600">
+              <DarkModeToggle />
+              <div className="flex items-center gap-2 ml-2 pl-3 border-l border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
                   {user.username}
-                  <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                  <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
                     viewer
                   </span>
                 </span>
@@ -411,6 +425,8 @@ export default function Home() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
+        <AnnouncementsBanner />
+
         <FilterBar
           filter={filter}
           onChange={setFilter}

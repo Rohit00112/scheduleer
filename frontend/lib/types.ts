@@ -44,3 +44,34 @@ export interface AuthResponse {
     accessToken: string;
     user: AuthUser;
 }
+
+export interface Conflict {
+    type: 'instructor' | 'room' | 'group';
+    day: string;
+    startTime: string;
+    endTime: string;
+    resource: string;
+    schedules: Schedule[];
+}
+
+export interface AuditLog {
+    id: number;
+    action: string;
+    entityType: string;
+    entityId: number | null;
+    username: string;
+    oldValues: string | null;
+    newValues: string | null;
+    description: string | null;
+    createdAt: string;
+}
+
+export interface Announcement {
+    id: number;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'urgent';
+    createdBy: string;
+    active: boolean;
+    createdAt: string;
+}

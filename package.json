@@ -1,0 +1,22 @@
+{
+    "name": "scheduler",
+    "version": "1.0.0",
+    "private": true,
+    "description": "University Schedule Management System - London Metropolitan University Spring 2026",
+    "scripts": {
+        "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+        "dev:backend": "cd backend && npm run start:dev",
+        "dev:frontend": "cd frontend && npm run dev",
+        "build": "cd backend && npm run build && cd ../frontend && npm run build",
+        "build:backend": "cd backend && npm run build",
+        "build:frontend": "cd frontend && npm run build",
+        "start": "concurrently -n backend,frontend -c blue,green \"npm run start:backend\" \"npm run start:frontend\"",
+        "start:backend": "cd backend && npm run start:prod",
+        "start:frontend": "cd frontend && npm run start",
+        "seed": "cd backend && npm run seed",
+        "install:all": "cd backend && npm install && cd ../frontend && npm install"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.2"
+    }
+}
