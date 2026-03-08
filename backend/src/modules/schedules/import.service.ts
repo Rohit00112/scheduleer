@@ -44,6 +44,10 @@ export class ImportService {
         //    consistent 15-column format.
         this.parseModuleViewSheet(workbook, imported, errors);
 
+        // 4. Parse individual program/year sheets (BIT Y1, BBA Y3, etc.) to
+        //    supplement any data missing from Module View.
+        this.parseProgramSheets(workbook, imported, errors);
+
         let importedCount = 0;
         if (imported.length > 0) {
             const seen = new Set<string>();
@@ -289,6 +293,83 @@ export class ImportService {
                 errors.push(`Module View Row ${rowNumber}: ${(e as Error).message}`);
             }
         });
+    }
+
+    /**
+     * Parse individual program/year sheets (e.g., "BIT Y1", "BBA Y3").
+     * These have 11 columns: Day, Time (combined), Class Type, Year,
+     * Module Code, Module Title, Lecturer, Group, Block, Level, Room.
+     * Header is in row 3 (rows 1-2 are title rows).
+     */
+    private parseProgramSheets(
+        workbook: ExcelJS.Workbook,
+        imported: Partial<Schedule>[],
+        errors: string[],
+    ): void {
+        const sheetConfigs = [
+            { name: 'BIT Y1', program: 'BIT', year: 1 },
+            { name: 'BIT Y2', program: 'BIT', year: 2 },
+            { name: 'BIT Y3', program: 'BIT', year: 3 },
+            { name: 'BBA Y1', program: 'BBA', year: 1 },
+            { name: 'BBA Y2', program: 'BBA', year: 2 },
+            { name: 'BBA Y3', program: 'BBA', year: 3 },
+        ];
+
+        for (const config of sheetConfigs) {
+            const ws = workbook.getWorksheet(config.name);
+            if (!ws) continue;
+
+            ws.eachRow((row, rowNumber) => {
+                if (rowNumber <= 3) return; // Skip title rows and header
+
+                try {
+                    const day = String(row.getCell(1).value || '').trim();
+                    if (!day || !['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].includes(day)) return;
+
+                    // Time is combined: "08:00 AM - 09:30 AM"
+                    const timeRaw = String(row.getCell(2).value || '').trim();
+                    const timeParts = timeRaw.split(/\s*-\s*/);
+                    if (timeParts.length < 2) return;
+                    const startTime = timeParts[0].trim();
+                    const endTime = timeParts[1].trim();
+
+                    const classType = String(row.getCell(3).value || '').trim();
+                    const year = parseInt(String(row.getCell(4).value || config.year.toString()));
+                    const moduleCode = String(row.getCell(5).value || '').trim();
+                    const moduleTitle = String(row.getCell(6).value || '').trim();
+                    const instructor = String(row.getCell(7).value || '').trim();
+                    const group = String(row.getCell(8).value || '').trim();
+                    const block = String(row.getCell(9).value || '').trim();
+                    const level = parseInt(String(row.getCell(10).value || '0'));
+                    const room = String(row.getCell(11).value || '').trim();
+
+                    const section = `L${year || config.year}`;
+                    const hours = this.calculateHours(startTime, endTime);
+
+                    if (day && startTime && endTime && moduleCode) {
+                        imported.push({
+                            day,
+                            startTime,
+                            endTime,
+                            classType,
+                            year: year || config.year,
+                            moduleCode,
+                            moduleTitle,
+                            instructor,
+                            group,
+                            block,
+                            level: level || year || config.year,
+                            room,
+                            program: config.program,
+                            section,
+                            hours: hours || 1.5,
+                        });
+                    }
+                } catch (e) {
+                    errors.push(`${config.name} Row ${rowNumber}: ${(e as Error).message}`);
+                }
+            });
+        }
     }
 
     private calculateHours(startTime: string, endTime: string): number {
