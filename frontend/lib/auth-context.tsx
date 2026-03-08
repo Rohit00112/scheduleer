@@ -2,14 +2,16 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { AuthUser } from "@/lib/types";
-import { login as apiLogin, register as apiRegister, getMe } from "@/lib/api";
+import { login as apiLogin, register as apiRegister, getMe, changePassword as apiChangePassword } from "@/lib/api";
 
 interface AuthContextType {
     user: AuthUser | null;
     loading: boolean;
     isAdmin: boolean;
+    isInstructor: boolean;
     login: (username: string, password: string) => Promise<void>;
     register: (username: string, password: string) => Promise<void>;
+    changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
     logout: () => void;
 }
 
@@ -47,6 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.user);
     };
 
+    const changePassword = async (currentPassword: string, newPassword: string) => {
+        const res = await apiChangePassword(currentPassword, newPassword);
+        localStorage.setItem("token", res.accessToken);
+        setUser(res.user);
+    };
+
     const logout = () => {
         localStorage.removeItem("token");
         setUser(null);
@@ -54,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return (
         <AuthContext.Provider
-            value={{ user, loading, isAdmin: user?.role === "admin", login, register, logout }}
+            value={{ user, loading, isAdmin: user?.role === "admin", isInstructor: user?.role === "instructor", login, register, changePassword, logout }}
         >
             {children}
         </AuthContext.Provider>

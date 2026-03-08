@@ -2,6 +2,7 @@
 
 import { Schedule } from "@/lib/types";
 import { useMemo, useState } from "react";
+import Pagination, { usePagination } from "./Pagination";
 
 interface InstructorViewProps {
     schedules: Schedule[];
@@ -18,6 +19,8 @@ interface InstructorData {
 export default function InstructorView({ schedules, onEdit }: InstructorViewProps) {
     const [expandedInstructor, setExpandedInstructor] = useState<string | null>(null);
     const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     const instructorData = useMemo(() => {
         const map = new Map<string, InstructorData>();
@@ -54,6 +57,8 @@ export default function InstructorView({ schedules, onEdit }: InstructorViewProp
         );
     }, [instructorData, search]);
 
+    const { paginated, totalPages, safePage, totalItems } = usePagination(filtered, page, pageSize);
+
     const classTypeColor: Record<string, string> = {
         Lecture: "bg-blue-100 text-blue-800",
         Tutorial: "bg-green-100 text-green-800",
@@ -67,13 +72,13 @@ export default function InstructorView({ schedules, onEdit }: InstructorViewProp
                     type="text"
                     placeholder="Search instructors or modules..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                     className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
             </div>
 
             <div className="space-y-3">
-                {filtered.map((instructor) => (
+                {paginated.map((instructor) => (
                     <div
                         key={instructor.name}
                         className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
@@ -227,12 +232,20 @@ export default function InstructorView({ schedules, onEdit }: InstructorViewProp
                     </div>
                 ))}
 
-                {filtered.length === 0 && (
+                {paginated.length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                         No instructors found.
                     </div>
                 )}
             </div>
+            <Pagination
+                currentPage={safePage}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                pageSizeOptions={[10, 15, 25, 50]}
+            />
         </div>
     );
 }

@@ -1,4 +1,4 @@
-import { Schedule, ScheduleFilter, AuthResponse, Conflict, AuditLog, Announcement } from "./types";
+import { Schedule, ScheduleFilter, AuthResponse, AuthUser, Conflict, AuditLog, Announcement, RoomUtilizationData, DashboardStats, ModuleCatalogItem, TeacherAssignmentItem, ProgramSummary, ImportResult } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -43,12 +43,19 @@ export async function register(username: string, password: string): Promise<Auth
     });
 }
 
-export async function getMe(): Promise<{ id: number; username: string; role: string } | null> {
+export async function getMe(): Promise<AuthUser | null> {
     try {
         return await fetchApi("/api/auth/me");
     } catch {
         return null;
     }
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<AuthResponse> {
+    return fetchApi<AuthResponse>("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+    });
 }
 
 export async function getSchedules(filter: ScheduleFilter = {}): Promise<Schedule[]> {
@@ -136,7 +143,7 @@ export async function exportCsv(): Promise<void> {
 }
 
 // Excel Import
-export async function importExcel(file: File): Promise<{ imported: number; errors: string[] }> {
+export async function importExcel(file: File): Promise<ImportResult> {
     const token = getToken();
     const formData = new FormData();
     formData.append("file", file);
@@ -196,6 +203,32 @@ export async function toggleAnnouncement(id: number): Promise<Announcement> {
 // User Management
 export async function getUsers(): Promise<{ id: number; username: string; role: string }[]> {
     return fetchApi("/api/users");
+}
+
+// Room Utilization (server-side with capacity)
+export async function getRoomUtilization(): Promise<{ rooms: RoomUtilizationData[]; heatmap: Record<string, number>; summary: { totalRooms: number; avgUtilization: number; underUsed: number; overUsed: number; totalCapacity: number } }> {
+    return fetchApi("/api/rooms/utilization");
+}
+
+// Dashboard Stats
+export async function getDashboardStats(): Promise<DashboardStats> {
+    return fetchApi<DashboardStats>("/api/instructors/dashboard");
+}
+
+// Program Summary
+export async function getProgramSummary(): Promise<{ programs: ProgramSummary[]; moduleCatalog: ModuleCatalogItem[]; teacherAssignments: TeacherAssignmentItem[] }> {
+    return fetchApi("/api/programs/summary");
+}
+
+// Module Catalog
+export async function getModuleCatalog(): Promise<ModuleCatalogItem[]> {
+    return fetchApi<ModuleCatalogItem[]>("/api/programs/modules");
+}
+
+// Teacher Assignments
+export async function getTeacherAssignments(moduleCode?: string): Promise<TeacherAssignmentItem[]> {
+    const path = moduleCode ? `/api/programs/assignments/${encodeURIComponent(moduleCode)}` : "/api/programs/assignments";
+    return fetchApi<TeacherAssignmentItem[]>(path);
 }
 
 export async function createUser(username: string, password: string, role?: string): Promise<any> {

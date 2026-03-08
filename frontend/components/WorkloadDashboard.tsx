@@ -1,6 +1,8 @@
 "use client";
 
 import { Schedule } from "@/lib/types";
+import { useState } from "react";
+import Pagination, { usePagination } from "./Pagination";
 
 interface WorkloadDashboardProps {
     schedules: Schedule[];
@@ -40,6 +42,14 @@ export default function WorkloadDashboard({ schedules }: WorkloadDashboardProps)
     const avgHours = data.length ? data.reduce((sum, d) => sum + d.hours, 0) / data.length : 0;
     const maxHours = data.length ? Math.max(...data.map((d) => d.hours)) : 1;
 
+    const [chartPage, setChartPage] = useState(1);
+    const chartPageSize = 15;
+    const { paginated: chartPaginated, safePage: chartSafePage, totalItems: chartTotal } = usePagination(data, chartPage, chartPageSize);
+
+    const [tablePage, setTablePage] = useState(1);
+    const tablePageSize = 15;
+    const { paginated: tablePaginated, safePage: tableSafePage, totalItems: tableTotal } = usePagination(data, tablePage, tablePageSize);
+
     return (
         <div className="space-y-6">
             {/* Summary */}
@@ -69,8 +79,8 @@ export default function WorkloadDashboard({ schedules }: WorkloadDashboardProps)
             {/* Workload chart */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">Teaching Hours Distribution</h3>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {data.map((d) => {
+                <div className="space-y-2">
+                    {chartPaginated.map((d) => {
                         const pct = maxHours > 0 ? (d.hours / maxHours) * 100 : 0;
                         const status = d.hours >= avgHours * 1.3 ? "overloaded" : d.hours <= avgHours * 0.7 ? "underloaded" : "normal";
                         const barColor = status === "overloaded" ? "bg-red-500" : status === "underloaded" ? "bg-yellow-500" : "bg-blue-500";
@@ -89,6 +99,12 @@ export default function WorkloadDashboard({ schedules }: WorkloadDashboardProps)
                         );
                     })}
                 </div>
+                <Pagination
+                    currentPage={chartSafePage}
+                    totalItems={chartTotal}
+                    pageSize={chartPageSize}
+                    onPageChange={setChartPage}
+                />
                 <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
                     <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-blue-500" /> Normal</div>
                     <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-500" /> Over-loaded (&gt;130% avg)</div>
@@ -112,7 +128,7 @@ export default function WorkloadDashboard({ schedules }: WorkloadDashboardProps)
                         </tr>
                     </thead>
                     <tbody>
-                        {data.map((d) => (
+                        {tablePaginated.map((d) => (
                             <tr key={d.name} className="border-b border-gray-100 hover:bg-gray-50">
                                 <td className="px-4 py-2 font-medium text-gray-900">{d.name}</td>
                                 <td className="text-center px-4 py-2">{d.classes}</td>
@@ -125,6 +141,12 @@ export default function WorkloadDashboard({ schedules }: WorkloadDashboardProps)
                         ))}
                     </tbody>
                 </table>
+                <Pagination
+                    currentPage={tableSafePage}
+                    totalItems={tableTotal}
+                    pageSize={tablePageSize}
+                    onPageChange={setTablePage}
+                />
             </div>
         </div>
     );

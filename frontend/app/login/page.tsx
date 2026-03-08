@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 
@@ -13,8 +13,13 @@ export default function LoginPage() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        if (user) {
+            router.push("/");
+        }
+    }, [user, router]);
+
     if (user) {
-        router.push("/");
         return null;
     }
 
@@ -113,6 +118,7 @@ export default function LoginPage() {
                             <p className="font-medium text-gray-600 mb-1">Demo accounts:</p>
                             <p>Admin: <span className="font-mono">admin</span> / <span className="font-mono">admin123</span></p>
                             <p>User: <span className="font-mono">user</span> / <span className="font-mono">user123</span></p>
+                            <p className="mt-1">Instructors: <span className="font-mono">firstname.lastname</span> / <span className="font-mono">instructor123</span></p>
                         </div>
                     )}
                 </div>

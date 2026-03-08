@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getUsers, createUser, updateUserRole, resetUserPassword, deleteUser } from "@/lib/api";
+import Pagination, { usePagination } from "./Pagination";
 
 interface UserRecord {
     id: number;
@@ -19,6 +20,8 @@ export default function UserManagement() {
     const [resetId, setResetId] = useState<number | null>(null);
     const [resetPwd, setResetPwd] = useState("");
     const [error, setError] = useState("");
+    const [page, setPage] = useState(1);
+    const pageSize = 15;
 
     const load = () => {
         setLoading(true);
@@ -82,6 +85,13 @@ export default function UserManagement() {
             </div>
         );
     }
+
+    const { paginated, safePage } = (() => {
+        const totalPages = Math.max(1, Math.ceil(users.length / pageSize));
+        const sp = Math.min(page, totalPages);
+        const start = (sp - 1) * pageSize;
+        return { paginated: users.slice(start, start + pageSize), safePage: sp };
+    })();
 
     return (
         <div className="space-y-6">
@@ -167,7 +177,7 @@ export default function UserManagement() {
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map((u) => (
+                        {paginated.map((u) => (
                             <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
                                 <td className="px-4 py-2 text-gray-500">{u.id}</td>
                                 <td className="px-4 py-2 font-medium text-gray-900">{u.username}</td>
@@ -199,6 +209,12 @@ export default function UserManagement() {
                         ))}
                     </tbody>
                 </table>
+                <Pagination
+                    currentPage={safePage}
+                    totalItems={users.length}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                />
             </div>
         </div>
     );

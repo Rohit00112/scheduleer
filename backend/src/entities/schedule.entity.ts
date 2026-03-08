@@ -53,6 +53,12 @@ export class Schedule {
     @Column()
     section: string;
 
+    @Column({ type: 'float', nullable: true, default: 1.5 })
+    hours: number;
+
+    @Column({ nullable: true })
+    specialization: string;
+
     @CreateDateColumn()
     createdAt: Date;
 

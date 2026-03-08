@@ -11,7 +11,7 @@ export default function ImportExport({ onImportComplete }: ImportExportProps) {
     const [importing, setImporting] = useState(false);
     const [exportingExcel, setExportingExcel] = useState(false);
     const [exportingCsv, setExportingCsv] = useState(false);
-    const [result, setResult] = useState<{ imported: number; errors: string[] } | null>(null);
+    const [result, setResult] = useState<{ imported: number; rooms?: number; modules?: number; assignments?: number; errors: string[] } | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,8 +51,8 @@ export default function ImportExport({ onImportComplete }: ImportExportProps) {
                     <label
                         htmlFor="import-file"
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${importing
-                                ? "bg-gray-100 text-gray-400 cursor-wait"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            ? "bg-gray-100 text-gray-400 cursor-wait"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
                             }`}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,8 +112,18 @@ export default function ImportExport({ onImportComplete }: ImportExportProps) {
                     <p className="font-semibold text-sm">
                         {result.imported > 0 ? `Successfully imported ${result.imported} schedules` : "Import completed"}
                     </p>
+                    {(result.rooms || result.modules || result.assignments) ? (
+                        <p className="text-xs text-gray-600 mt-1">
+                            {result.rooms ? `${result.rooms} rooms` : ""}
+                            {result.rooms && result.modules ? ", " : ""}
+                            {result.modules ? `${result.modules} modules` : ""}
+                            {(result.rooms || result.modules) && result.assignments ? ", " : ""}
+                            {result.assignments ? `${result.assignments} teacher assignments` : ""}
+                            {" also imported from reference data."}
+                        </p>
+                    ) : null}
                     {result.errors?.length > 0 && (
-                        <ul className="mt-2 text-xs text-red-700 list-disc list-inside">
+                        <ul className="mt-2 text-xs text-red-700 list-disc list-inside max-h-40 overflow-y-auto">
                             {result.errors.map((e, i) => <li key={i}>{e}</li>)}
                         </ul>
                     )}

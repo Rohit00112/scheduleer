@@ -32,8 +32,8 @@ export class UsersController {
 
     @Post()
     @ApiOperation({ summary: 'Create a user' })
-    create(@Body() body: { username: string; password: string; role?: UserRole }) {
-        return this.usersService.create(body.username, body.password, body.role);
+    create(@Body() body: { username: string; password: string; role?: UserRole; instructorName?: string }) {
+        return this.usersService.create(body.username, body.password, body.role, body.instructorName);
     }
 
     @Put(':id/role')

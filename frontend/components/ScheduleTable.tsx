@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Schedule } from "@/lib/types";
+import Pagination, { usePagination } from "./Pagination";
 
 const CLASS_TYPE_COLORS: Record<string, string> = {
     Lecture: "bg-blue-100 text-blue-800",
@@ -16,6 +18,17 @@ interface ScheduleTableProps {
 }
 
 export default function ScheduleTable({ schedules, onEdit, onDelete, isAdmin }: ScheduleTableProps) {
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+    const { paginated, totalPages, safePage } = usePagination(schedules, page, pageSize);
+
+    // Reset to page 1 when schedules change (e.g. filter)
+    const [prevLen, setPrevLen] = useState(schedules.length);
+    if (schedules.length !== prevLen) {
+        setPrevLen(schedules.length);
+        if (page !== 1) setPage(1);
+    }
+
     if (schedules.length === 0) {
         return (
             <div className="text-center py-12 text-gray-500">
@@ -48,7 +61,7 @@ export default function ScheduleTable({ schedules, onEdit, onDelete, isAdmin }: 
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {schedules.map((s) => (
+                        {paginated.map((s) => (
                             <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{s.day}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
@@ -94,9 +107,13 @@ export default function ScheduleTable({ schedules, onEdit, onDelete, isAdmin }: 
                     </tbody>
                 </table>
             </div>
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
-                Showing {schedules.length} schedule{schedules.length !== 1 ? "s" : ""}
-            </div>
+            <Pagination
+                currentPage={safePage}
+                totalItems={schedules.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
         </div>
     );
 }

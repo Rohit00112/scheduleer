@@ -16,12 +16,18 @@ export class UsersService {
         return users.map(({ password, ...rest }) => rest);
     }
 
-    async create(username: string, password: string, role: UserRole = UserRole.USER) {
+    async create(username: string, password: string, role: UserRole = UserRole.USER, instructorName?: string) {
         const existing = await this.userRepo.findOne({ where: { username } });
         if (existing) throw new ConflictException('Username already exists');
 
         const hashed = await bcrypt.hash(password, 10);
-        const user = this.userRepo.create({ username, password: hashed, role });
+        const user = this.userRepo.create({
+            username,
+            password: hashed,
+            role,
+            mustChangePassword: role === UserRole.INSTRUCTOR,
+            instructorName: instructorName || null,
+        });
         const saved = await this.userRepo.save(user);
         const { password: _, ...result } = saved;
         return result;

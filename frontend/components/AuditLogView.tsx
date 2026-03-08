@@ -3,10 +3,13 @@
 import { useState, useEffect } from "react";
 import { AuditLog } from "@/lib/types";
 import { getAuditLog } from "@/lib/api";
+import Pagination, { usePagination } from "./Pagination";
 
 export default function AuditLogView() {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
 
     useEffect(() => {
         getAuditLog(200)
@@ -30,12 +33,14 @@ export default function AuditLogView() {
         delete: "bg-red-100 text-red-800",
     };
 
+    const { paginated, safePage } = usePagination(logs, page, pageSize);
+
     return (
         <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">{logs.length} Audit Entries</h3>
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="max-h-[600px] overflow-y-auto">
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-gray-50 z-10">
                             <tr className="border-b border-gray-200">
@@ -47,7 +52,7 @@ export default function AuditLogView() {
                             </tr>
                         </thead>
                         <tbody>
-                            {logs.map((log) => (
+                            {paginated.map((log) => (
                                 <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
                                     <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
                                         {new Date(log.createdAt).toLocaleString()}
@@ -90,6 +95,13 @@ export default function AuditLogView() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={safePage}
+                    totalItems={logs.length}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                />
             </div>
         </div>
     );

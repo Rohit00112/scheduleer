@@ -3,10 +3,13 @@
 import { useState, useEffect } from "react";
 import { Conflict } from "@/lib/types";
 import { getConflicts } from "@/lib/api";
+import Pagination, { usePagination } from "./Pagination";
 
 export default function ConflictsView() {
     const [conflicts, setConflicts] = useState<Conflict[]>([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const pageSize = 15;
 
     useEffect(() => {
         getConflicts()
@@ -35,6 +38,8 @@ export default function ConflictsView() {
             </div>
         );
     }
+
+    const { paginated, safePage, totalItems } = usePagination(conflicts, page, pageSize);
 
     const typeColors: Record<string, string> = {
         instructor: "bg-red-50 border-red-200 text-red-800",
@@ -67,7 +72,7 @@ export default function ConflictsView() {
                 </div>
             </div>
 
-            {conflicts.map((conflict, idx) => (
+            {paginated.map((conflict, idx) => (
                 <div
                     key={idx}
                     className={`rounded-xl border p-4 ${typeColors[conflict.type] || "bg-gray-50 border-gray-200"}`}
@@ -95,6 +100,12 @@ export default function ConflictsView() {
                     </div>
                 </div>
             ))}
+            <Pagination
+                currentPage={safePage}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setPage}
+            />
         </div>
     );
 }

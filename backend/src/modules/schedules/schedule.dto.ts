@@ -59,6 +59,17 @@ export class CreateScheduleDto {
     @ApiProperty({ example: 'L1C1' })
     @IsString()
     section: string;
+
+    @ApiPropertyOptional({ example: 1.5 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    hours?: number;
+
+    @ApiPropertyOptional({ example: 'C [S2]' })
+    @IsOptional()
+    @IsString()
+    specialization?: string;
 }
 
 export class UpdateScheduleDto {
@@ -131,6 +142,17 @@ export class UpdateScheduleDto {
     @IsOptional()
     @IsString()
     section?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    hours?: number;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    specialization?: string;
 }
 
 export class FilterScheduleDto {

@@ -28,3 +28,15 @@ export class RegisterDto {
     @IsEnum(UserRole)
     role?: UserRole;
 }
+
+export class ChangePasswordDto {
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsString()
+    currentPassword?: string;
+
+    @ApiProperty()
+    @IsString()
+    @MinLength(6)
+    newPassword: string;
+}

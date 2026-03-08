@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto } from './auth.dto';
+import { LoginDto, RegisterDto, ChangePasswordDto } from './auth.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @ApiTags('auth')
@@ -21,6 +21,14 @@ export class AuthController {
         return this.authService.register(dto.username, dto.password, dto.role);
     }
 
+    @Post('change-password')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Change password' })
+    changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
+        return this.authService.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
+    }
+
     @Get('me')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
@@ -28,6 +36,12 @@ export class AuthController {
     async getMe(@Request() req: any) {
         const user = await this.authService.findById(req.user.sub);
         if (!user) return null;
-        return { id: user.id, username: user.username, role: user.role };
+        return {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            mustChangePassword: user.mustChangePassword,
+            instructorName: user.instructorName,
+        };
     }
 }

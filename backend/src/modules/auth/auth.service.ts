@@ -40,6 +40,32 @@ export class AuthService {
         return this.buildToken(user);
     }
 
+    async changePassword(userId: number, currentPassword: string | undefined, newPassword: string) {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        // Skip current password check only for forced password change
+        if (user.mustChangePassword && !currentPassword) {
+            // Allow setting new password without current password
+        } else {
+            if (!currentPassword) {
+                throw new UnauthorizedException('Current password is required');
+            }
+            const valid = await bcrypt.compare(currentPassword, user.password);
+            if (!valid) {
+                throw new UnauthorizedException('Current password is incorrect');
+            }
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.mustChangePassword = false;
+        await this.userRepo.save(user);
+
+        return this.buildToken(user);
+    }
+
     async findById(id: number) {
         return this.userRepo.findOne({ where: { id } });
     }
@@ -48,7 +74,13 @@ export class AuthService {
         const payload = { sub: user.id, username: user.username, role: user.role };
         return {
             accessToken: this.jwtService.sign(payload),
-            user: { id: user.id, username: user.username, role: user.role },
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                mustChangePassword: user.mustChangePassword,
+                instructorName: user.instructorName,
+            },
         };
     }
 }
