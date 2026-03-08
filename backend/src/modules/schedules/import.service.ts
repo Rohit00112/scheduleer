@@ -86,10 +86,19 @@ export class ImportService {
         });
 
         if (imported.length > 0) {
+            // Deduplicate combined classes (same day/time/type/module/instructor/group/room)
+            const seen = new Set<string>();
+            const unique = imported.filter((s) => {
+                const key = `${s.day}|${s.startTime}|${s.endTime}|${s.classType}|${s.moduleCode}|${s.instructor}|${s.group}|${s.room}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
             // Clear existing and re-import
             await this.scheduleRepo.clear();
-            for (let i = 0; i < imported.length; i += 100) {
-                const batch = imported.slice(i, i + 100);
+            for (let i = 0; i < unique.length; i += 100) {
+                const batch = unique.slice(i, i + 100);
                 await this.scheduleRepo
                     .createQueryBuilder()
                     .insert()
@@ -97,9 +106,11 @@ export class ImportService {
                     .values(batch as any[])
                     .execute();
             }
+
+            return { imported: unique.length, errors };
         }
 
-        return { imported: imported.length, errors };
+        return { imported: 0, errors };
     }
 
     private inferSection(sheetName: string, currentRow: number, worksheet: ExcelJS.Worksheet): string {
