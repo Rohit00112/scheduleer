@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -16,10 +17,13 @@ import { UsersModule } from './modules/users/users.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { ProgramsModule } from './modules/programs/programs.module';
 import { InstructorsModule } from './modules/instructors/instructors.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 import { join } from 'path';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: join(__dirname, '..', 'data', 'scheduler.db'),
@@ -33,6 +37,8 @@ import { join } from 'path';
     RoomsModule,
     ProgramsModule,
     InstructorsModule,
+    WhatsappModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],
