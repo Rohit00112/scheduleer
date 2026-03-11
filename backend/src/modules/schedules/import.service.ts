@@ -52,7 +52,7 @@ export class ImportService {
         if (imported.length > 0) {
             const seen = new Set<string>();
             const unique = imported.filter((s) => {
-                const key = `${s.day}|${s.startTime}|${s.endTime}|${s.classType}|${s.moduleCode}|${s.instructor}|${s.group}|${s.room}`;
+                const key = `${s.day}|${s.startTime}|${s.endTime}|${s.classType}|${s.moduleCode}|${s.instructor}|${s.group}|${s.room}`.toLowerCase();
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
@@ -255,7 +255,7 @@ export class ImportService {
                 const specialization = String(row.getCell(8).value || '').trim();
                 const moduleCode = String(row.getCell(9).value || '').trim();
                 const moduleTitle = String(row.getCell(10).value || '').trim();
-                const instructor = String(row.getCell(11).value || '').trim();
+                const instructor = this.normalizeName(String(row.getCell(11).value || '').trim());
                 const group = String(row.getCell(12).value || '').trim();
                 const block = String(row.getCell(13).value || '').trim();
                 const level = parseInt(String(row.getCell(14).value || '0'));
@@ -337,7 +337,7 @@ export class ImportService {
                     const year = parseInt(String(row.getCell(4).value || config.year.toString()));
                     const moduleCode = String(row.getCell(5).value || '').trim();
                     const moduleTitle = String(row.getCell(6).value || '').trim();
-                    const instructor = String(row.getCell(7).value || '').trim();
+                    const instructor = this.normalizeName(String(row.getCell(7).value || '').trim());
                     const group = String(row.getCell(8).value || '').trim();
                     const block = String(row.getCell(9).value || '').trim();
                     const level = parseInt(String(row.getCell(10).value || '0'));
@@ -408,6 +408,14 @@ export class ImportService {
             return `${hour12.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${period}`;
         }
         return str.trim();
+    }
+
+    private normalizeName(name: string): string {
+        if (!name) return name;
+        return name.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\b\w+/g, (word) => {
+            if (word.length <= 1) return word.toUpperCase();
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        });
     }
 
     async exportCsv(): Promise<string> {

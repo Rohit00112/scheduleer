@@ -20,13 +20,13 @@ export class ConflictService {
     ) { }
 
     async detectAllConflicts(): Promise<Conflict[]> {
-        const all = await this.scheduleRepo.find();
+        const all = this.deduplicateSchedules(await this.scheduleRepo.find());
         const conflicts: Conflict[] = [];
 
         const byDay = this.groupBy(all, (s) => s.day);
 
         for (const [, daySchedules] of Object.entries(byDay)) {
-            conflicts.push(...this.findOverlaps(daySchedules, 'instructor', (s) => s.instructor));
+            conflicts.push(...this.findOverlaps(daySchedules, 'instructor', (s) => (s.instructor || '').toLowerCase()));
             conflicts.push(...this.findOverlaps(daySchedules, 'room', (s) => s.room));
             conflicts.push(
                 ...this.findOverlaps(daySchedules, 'group', (s) => `${s.program}-${s.section}-${s.group}`),
@@ -163,6 +163,16 @@ export class ConflictService {
         }
 
         return conflicts;
+    }
+
+    private deduplicateSchedules(schedules: Schedule[]): Schedule[] {
+        const seen = new Set<string>();
+        return schedules.filter((s) => {
+            const key = `${s.day}|${s.startTime}|${s.endTime}|${s.classType}|${s.moduleCode}|${(s.instructor || '').toLowerCase()}|${s.group}|${s.room}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }
 
     private groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {
