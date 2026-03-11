@@ -1,0 +1,11 @@
+node_modules
+.next
+dist
+.env
+.env.local
+backend/node_modules
+backend/dist
+backend/data/*.db
+frontend/node_modules
+frontend/.next
+.git
