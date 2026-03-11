@@ -6,8 +6,11 @@ if [ -n "$PORT" ]; then
     sed -i "s/listen 80;/listen $PORT;/" /etc/nginx/http.d/default.conf
 fi
 
-# Start backend on port 3001
+# Seed database if empty
 cd /app/backend
+node dist/seed.js || true
+
+# Start backend on port 3001
 PORT=3001 node dist/main &
 
 # Start frontend on port 3000
