@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: scheduler-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: VALIDATE_TWILIO_SIGNATURE
+        value: "false"
+    disk:
+      name: scheduler-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  - type: web
+    name: scheduler-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: scheduler-backend
+          type: web
+          property: host
