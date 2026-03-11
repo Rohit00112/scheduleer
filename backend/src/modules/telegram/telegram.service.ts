@@ -130,26 +130,24 @@ export class TelegramService implements OnModuleInit {
     }
 
     private tokenMatches(s: Schedule, token: string): boolean {
-        // Section match: L2C1 → must match section AND derived group (C1)
-        if (s.section.toLowerCase() === token) {
-            const groupId = this.extractGroupFromSection(token);
-            if (groupId) {
-                return s.group.toLowerCase().split('+').some((g) => g.trim() === groupId);
-            }
-            return true;
-        }
-        // Section-like token (e.g., L3C3) that doesn't exactly match section:
-        // Check if this is a joint class where the year matches and the group is included
+        // Section-like token (e.g., L3C3 = Year 3, Section C3)
         const sectionParts = token.match(/^l(\d+)([a-z]\d+)$/i);
         if (sectionParts) {
             const yearPrefix = `l${sectionParts[1]}`.toLowerCase();
             const groupId = sectionParts[2].toLowerCase();
+
+            // Exact section match (e.g., L3C3 workshops with section L3C3)
+            if (s.section.toLowerCase() === token) return true;
+
+            // Joint class: same year, group field contains the section's group
+            // e.g., section L3C1 with group C1+C2+C3 should match L3C3 query
             if (
                 s.section.toLowerCase().startsWith(yearPrefix) &&
                 s.group.toLowerCase().split('+').some((g) => g.trim() === groupId)
             ) {
                 return true;
             }
+            return false;
         }
         // Exact match for group
         if (s.group.toLowerCase().split('+').some((g) => g.trim() === token)) return true;
