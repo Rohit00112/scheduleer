@@ -138,6 +138,19 @@ export class TelegramService implements OnModuleInit {
             }
             return true;
         }
+        // Section-like token (e.g., L3C3) that doesn't exactly match section:
+        // Check if this is a joint class where the year matches and the group is included
+        const sectionParts = token.match(/^l(\d+)([a-z]\d+)$/i);
+        if (sectionParts) {
+            const yearPrefix = `l${sectionParts[1]}`.toLowerCase();
+            const groupId = sectionParts[2].toLowerCase();
+            if (
+                s.section.toLowerCase().startsWith(yearPrefix) &&
+                s.group.toLowerCase().split('+').some((g) => g.trim() === groupId)
+            ) {
+                return true;
+            }
+        }
         // Exact match for group
         if (s.group.toLowerCase().split('+').some((g) => g.trim() === token)) return true;
         // Substring match for descriptive fields
