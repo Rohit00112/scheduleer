@@ -117,7 +117,7 @@ export class TelegramService implements OnModuleInit {
             tokens.every((t) => this.tokenMatches(s, t)),
         );
 
-        if (filtered.length === 0) return `No results for "${query}" on ${day}.`;
+        if (filtered.length === 0) return `📭 No classes found for "${query}" on ${day}.`;
 
         const sorted = filtered.sort((a, b) => this.timeToMinutes(a.startTime) - this.timeToMinutes(b.startTime));
         const header = `📅 *${day} — ${query}* (${sorted.length} results)`;
