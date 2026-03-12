@@ -10,6 +10,8 @@ const TIME_SLOTS = [
     "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
     "04:00 PM",
 ];
+const SLOT_HEIGHT_PX = 56;
+const CELL_PADDING_PX = 8;
 
 const CLASS_TYPE_COLORS: Record<string, string> = {
     Lecture: "bg-blue-50 border-blue-300 text-blue-900 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-100",
@@ -19,6 +21,11 @@ const CLASS_TYPE_COLORS: Record<string, string> = {
 
 function timeToIndex(time: string): number {
     return TIME_SLOTS.indexOf(time);
+}
+
+function getScheduleSpan(schedule: Schedule): number {
+    const span = timeToIndex(schedule.endTime) - timeToIndex(schedule.startTime);
+    return span > 0 ? span : 1;
 }
 
 interface TimetableViewProps {
@@ -61,13 +68,20 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                     </thead>
                     <tbody>
                         {TIME_SLOTS.map((time, idx) => (
-                            <tr key={time} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-950/50"}>
+                            <tr
+                                key={time}
+                                className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-950/50"}
+                                style={{ height: `${SLOT_HEIGHT_PX}px` }}
+                            >
                                 <td className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800 whitespace-nowrap font-mono">
                                     {time}
                                 </td>
                                 {DAYS.map((day) => {
                                     const startingHere = groupedByDay[day]?.filter(
                                         (s) => s.startTime === time
+                                    );
+                                    const rowSpan = Math.max(
+                                        ...(startingHere?.map(getScheduleSpan) ?? [1])
                                     );
                                     const occupying = groupedByDay[day]?.some(
                                         (s) => {
@@ -84,24 +98,28 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                                             <td
                                                 key={day}
                                                 className="px-1 py-1 border-r border-gray-200 dark:border-gray-800 align-top"
-                                                rowSpan={Math.max(
-                                                    ...startingHere.map((s) => {
-                                                        const span = timeToIndex(s.endTime) - timeToIndex(s.startTime);
-                                                        return span > 0 ? span : 1;
-                                                    })
-                                                )}
+                                                rowSpan={rowSpan}
                                             >
                                                 <div className="space-y-1">
                                                     {startingHere.map((s) => (
                                                         <div
                                                             key={s.id}
-                                                            className={`rounded-lg border p-2 text-xs ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-50 border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"}`}
+                                                            className={`rounded-lg border p-2 text-xs ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-50 border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"} ${startingHere.length === 1 ? "flex h-full flex-col" : ""}`}
+                                                            style={
+                                                                startingHere.length === 1
+                                                                    ? {
+                                                                        minHeight: `${getScheduleSpan(s) * SLOT_HEIGHT_PX - CELL_PADDING_PX}px`,
+                                                                    }
+                                                                    : undefined
+                                                            }
                                                         >
                                                             <div className="font-bold">{s.moduleCode}</div>
                                                             <div className="text-[10px] opacity-75 truncate">{s.moduleTitle}</div>
                                                             <div className="mt-1 text-[10px]">{s.instructor}</div>
                                                             <div className="text-[10px] opacity-60">{s.room} | {s.group}</div>
-                                                            <div className="text-[10px] opacity-60">{s.startTime} - {s.endTime}</div>
+                                                            <div className={`text-[10px] opacity-60 ${startingHere.length === 1 ? "mt-auto pt-2" : ""}`}>
+                                                                {s.startTime} - {s.endTime}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
