@@ -16,9 +16,9 @@ export default function AnnouncementsBanner() {
     if (visible.length === 0) return null;
 
     const typeStyles: Record<string, string> = {
-        info: "bg-blue-50 border-blue-200 text-blue-800",
-        warning: "bg-yellow-50 border-yellow-200 text-yellow-800",
-        urgent: "bg-red-50 border-red-200 text-red-800",
+        info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/30 dark:border-blue-900/60 dark:text-blue-100",
+        warning: "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-100",
+        urgent: "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/30 dark:border-red-900/60 dark:text-red-100",
     };
 
     const typeIcons: Record<string, string> = {

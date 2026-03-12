@@ -5,9 +5,13 @@
     "description": "University Schedule Management System - London Metropolitan University Spring 2026",
     "scripts": {
         "dev": "cd frontend && npm run dev",
+        "dev:mobile": "cd mobile && npm run start",
         "build": "cd frontend && npm run build",
         "start": "cd frontend && npm run start",
         "seed": "cd frontend && npm run seed",
-        "install:all": "cd frontend && npm install"
+        "install:all": "cd frontend && npm install && cd ../mobile && npm install",
+        "mobile:android": "cd mobile && npm run android",
+        "mobile:ios": "cd mobile && npm run ios",
+        "mobile:typecheck": "cd mobile && npm run typecheck"
     }
 }

@@ -5,9 +5,9 @@ import { Schedule } from "@/lib/types";
 import Pagination, { usePagination } from "./Pagination";
 
 const CLASS_TYPE_COLORS: Record<string, string> = {
-    Lecture: "bg-blue-100 text-blue-800",
-    Tutorial: "bg-green-100 text-green-800",
-    Workshop: "bg-purple-100 text-purple-800",
+    Lecture: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-100",
+    Tutorial: "bg-green-100 text-green-800 dark:bg-emerald-950/40 dark:text-emerald-100",
+    Workshop: "bg-purple-100 text-purple-800 dark:bg-violet-950/40 dark:text-violet-100",
 };
 
 interface ScheduleTableProps {
@@ -31,8 +31,8 @@ export default function ScheduleTable({ schedules, onEdit, onDelete, isAdmin }: 
 
     if (schedules.length === 0) {
         return (
-            <div className="text-center py-12 text-gray-500">
-                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p className="text-lg font-medium">No schedules found</p>
@@ -42,49 +42,49 @@ export default function ScheduleTable({ schedules, onEdit, onDelete, isAdmin }: 
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                    <thead className="bg-gray-50 dark:bg-gray-800/80">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Day</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Time</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Module</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Instructor</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Group</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Room</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Program</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Day</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Time</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Module</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Instructor</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Group</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Room</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Program</th>
                             {isAdmin && (
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                             )}
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
                         {paginated.map((s) => (
-                            <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{s.day}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                            <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{s.day}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     {s.startTime} - {s.endTime}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-100 text-gray-800"}`}>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"}`}>
                                         {s.classType}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                                     <div className="font-medium">{s.moduleCode}</div>
-                                    <div className="text-gray-500 text-xs">{s.moduleTitle}</div>
+                                    <div className="text-gray-500 dark:text-gray-400 text-xs">{s.moduleTitle}</div>
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{s.instructor}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{s.group}</td>
-                                <td className="px-4 py-3 text-sm text-gray-600">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{s.instructor}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{s.group}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                                     <div>{s.room}</div>
-                                    <div className="text-gray-400 text-xs">{s.block} - Level {s.level}</div>
+                                    <div className="text-gray-400 dark:text-gray-500 text-xs">{s.block} - Level {s.level}</div>
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     <div>{s.program} Y{s.year}</div>
-                                    <div className="text-gray-400 text-xs">{s.section}</div>
+                                    <div className="text-gray-400 dark:text-gray-500 text-xs">{s.section}</div>
                                 </td>
                                 {isAdmin && (
                                     <td className="px-4 py-3 whitespace-nowrap text-sm">

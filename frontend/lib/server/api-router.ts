@@ -84,21 +84,21 @@ export async function handleApiRequest(request: NextRequest): Promise<Response> 
 
     switch (segments[0]) {
       case "auth":
-        return handleAuthRoute(request, method, segments.slice(1));
+        return await handleAuthRoute(request, method, segments.slice(1));
       case "schedules":
-        return handleSchedulesRoute(request, method, segments.slice(1));
+        return await handleSchedulesRoute(request, method, segments.slice(1));
       case "announcements":
-        return handleAnnouncementsRoute(request, method, segments.slice(1));
+        return await handleAnnouncementsRoute(request, method, segments.slice(1));
       case "users":
-        return handleUsersRoute(request, method, segments.slice(1));
+        return await handleUsersRoute(request, method, segments.slice(1));
       case "rooms":
-        return handleRoomsRoute(request, method, segments.slice(1));
+        return await handleRoomsRoute(request, method, segments.slice(1));
       case "programs":
-        return handleProgramsRoute(request, method, segments.slice(1));
+        return await handleProgramsRoute(request, method, segments.slice(1));
       case "instructors":
-        return handleInstructorsRoute(request, method, segments.slice(1));
+        return await handleInstructorsRoute(request, method, segments.slice(1));
       case "telegram":
-        return handleTelegramRoute(request, method, segments.slice(1));
+        return await handleTelegramRoute(request, method, segments.slice(1));
       default:
         return json({ message: "Not Found" }, 404);
     }

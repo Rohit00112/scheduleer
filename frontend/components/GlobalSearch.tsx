@@ -50,12 +50,12 @@ export default function GlobalSearch({ schedules, onSelect }: GlobalSearchProps)
                     }}
                     onFocus={() => setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 200)}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 {query && (
                     <button
                         onClick={() => { setQuery(""); setOpen(false); }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -65,12 +65,12 @@ export default function GlobalSearch({ schedules, onSelect }: GlobalSearchProps)
             </div>
 
             {open && query.trim() && (
-                <div className="absolute z-50 top-full mt-1 w-full bg-white rounded-xl border border-gray-200 shadow-lg max-h-80 overflow-y-auto">
+                <div className="absolute z-50 top-full mt-1 w-full bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg max-h-80 overflow-y-auto">
                     {results.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No results found</div>
                     ) : (
                         <>
-                            <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
                                 {results.length} result{results.length !== 1 ? "s" : ""}
                             </div>
                             {results.map((s) => (
@@ -80,13 +80,13 @@ export default function GlobalSearch({ schedules, onSelect }: GlobalSearchProps)
                                         onSelect?.(s);
                                         setOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-50 dark:border-gray-800 last:border-0"
                                 >
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-bold text-blue-600">{s.moduleCode}</span>
-                                        <span className="text-xs text-gray-700">{s.moduleTitle}</span>
+                                        <span className="text-xs text-gray-700 dark:text-gray-200">{s.moduleTitle}</span>
                                     </div>
-                                    <div className="text-xs text-gray-500 mt-0.5">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                         {s.day} {s.startTime}-{s.endTime} &bull; {s.instructor} &bull; {s.room} &bull; {s.group}
                                     </div>
                                 </button>

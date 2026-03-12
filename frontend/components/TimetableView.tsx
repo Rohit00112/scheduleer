@@ -12,9 +12,9 @@ const TIME_SLOTS = [
 ];
 
 const CLASS_TYPE_COLORS: Record<string, string> = {
-    Lecture: "bg-blue-50 border-blue-300 text-blue-900",
-    Tutorial: "bg-green-50 border-green-300 text-green-900",
-    Workshop: "bg-purple-50 border-purple-300 text-purple-900",
+    Lecture: "bg-blue-50 border-blue-300 text-blue-900 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-100",
+    Tutorial: "bg-green-50 border-green-300 text-green-900 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-100",
+    Workshop: "bg-purple-50 border-purple-300 text-purple-900 dark:bg-violet-950/30 dark:border-violet-800 dark:text-violet-100",
 };
 
 function timeToIndex(time: string): number {
@@ -28,7 +28,7 @@ interface TimetableViewProps {
 export default function TimetableView({ schedules }: TimetableViewProps) {
     if (schedules.length === 0) {
         return (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 <p className="text-lg font-medium">No schedules to display</p>
                 <p className="text-sm">Try adjusting your filters</p>
             </div>
@@ -41,18 +41,18 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
     });
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="min-w-full">
                     <thead>
-                        <tr className="bg-gray-50">
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b border-r border-gray-200 w-20">
+                        <tr className="bg-gray-50 dark:bg-gray-800/80">
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase border-b border-r border-gray-200 dark:border-gray-800 w-20">
                                 Time
                             </th>
                             {DAYS.map((day) => (
                                 <th
                                     key={day}
-                                    className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase border-b border-r border-gray-200"
+                                    className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase border-b border-r border-gray-200 dark:border-gray-800"
                                 >
                                     {day}
                                 </th>
@@ -61,8 +61,8 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                     </thead>
                     <tbody>
                         {TIME_SLOTS.map((time, idx) => (
-                            <tr key={time} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                                <td className="px-3 py-1 text-xs text-gray-500 border-r border-gray-200 whitespace-nowrap font-mono">
+                            <tr key={time} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-950/50"}>
+                                <td className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800 whitespace-nowrap font-mono">
                                     {time}
                                 </td>
                                 {DAYS.map((day) => {
@@ -83,7 +83,7 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                                         return (
                                             <td
                                                 key={day}
-                                                className="px-1 py-1 border-r border-gray-200 align-top"
+                                                className="px-1 py-1 border-r border-gray-200 dark:border-gray-800 align-top"
                                                 rowSpan={Math.max(
                                                     ...startingHere.map((s) => {
                                                         const span = timeToIndex(s.endTime) - timeToIndex(s.startTime);
@@ -95,7 +95,7 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                                                     {startingHere.map((s) => (
                                                         <div
                                                             key={s.id}
-                                                            className={`rounded-lg border p-2 text-xs ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-50 border-gray-300"}`}
+                                                            className={`rounded-lg border p-2 text-xs ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-50 border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"}`}
                                                         >
                                                             <div className="font-bold">{s.moduleCode}</div>
                                                             <div className="text-[10px] opacity-75 truncate">{s.moduleTitle}</div>
@@ -110,7 +110,7 @@ export default function TimetableView({ schedules }: TimetableViewProps) {
                                     }
 
                                     return (
-                                        <td key={day} className="px-1 py-1 border-r border-gray-200" />
+                                        <td key={day} className="px-1 py-1 border-r border-gray-200 dark:border-gray-800" />
                                     );
                                 })}
                             </tr>

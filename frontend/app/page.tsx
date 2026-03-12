@@ -16,7 +16,6 @@ import {
   exportExcel,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { useTheme } from "@/lib/theme-context";
 import ChangePasswordModal from "@/components/ChangePasswordModal";
 import FilterBar from "@/components/FilterBar";
 import ScheduleTable from "@/components/ScheduleTable";
@@ -137,7 +136,7 @@ export default function Home() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex items-center justify-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
       </div>
     );
@@ -146,7 +145,7 @@ export default function Home() {
   // Force password change for first-time logins
   if (user.mustChangePassword) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex items-center justify-center">
         <ChangePasswordModal
           isForced={true}
           onChangePassword={changePassword}
@@ -487,39 +486,39 @@ export default function Home() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-gray-900">{mySchedules.length}</div>
-              <div className="text-xs text-gray-500 mt-1">My Classes</div>
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{mySchedules.length}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">My Classes</div>
             </div>
-            <div className="bg-blue-50 rounded-xl shadow-sm border border-blue-200 p-4">
-              <div className="text-2xl font-bold text-blue-900">{myModules.length}</div>
-              <div className="text-xs text-blue-600 mt-1">My Modules</div>
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl shadow-sm border border-blue-200 dark:border-blue-900/60 p-4">
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{myModules.length}</div>
+              <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">My Modules</div>
             </div>
-            <div className="bg-green-50 rounded-xl shadow-sm border border-green-200 p-4">
-              <div className="text-2xl font-bold text-green-900">{totalHours.toFixed(1)}h</div>
-              <div className="text-xs text-green-600 mt-1">Hours/Week</div>
+            <div className="bg-green-50 dark:bg-emerald-950/30 rounded-xl shadow-sm border border-green-200 dark:border-emerald-900/60 p-4">
+              <div className="text-2xl font-bold text-green-900 dark:text-emerald-100">{totalHours.toFixed(1)}h</div>
+              <div className="text-xs text-green-600 dark:text-emerald-300 mt-1">Hours/Week</div>
             </div>
-            <div className="bg-purple-50 rounded-xl shadow-sm border border-purple-200 p-4">
-              <div className="text-2xl font-bold text-purple-900">
+            <div className="bg-purple-50 dark:bg-violet-950/30 rounded-xl shadow-sm border border-purple-200 dark:border-violet-900/60 p-4">
+              <div className="text-2xl font-bold text-purple-900 dark:text-violet-100">
                 {new Set(mySchedules.map((s) => s.day)).size}
               </div>
-              <div className="text-xs text-purple-600 mt-1">Teaching Days</div>
+              <div className="text-xs text-purple-600 dark:text-violet-300 mt-1">Teaching Days</div>
             </div>
           </div>
 
           {/* My Modules */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">My Modules</h3>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5 mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">My Modules</h3>
             <div className="flex flex-wrap gap-2">
               {myModules.map((m) => (
                 <span
                   key={m.code}
-                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-800 border border-blue-200"
+                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-100 border border-blue-200 dark:border-blue-900/60"
                 >
                   <span className="font-semibold">{m.code}</span>
-                  <span className="mx-1.5 text-blue-300">|</span>
+                  <span className="mx-1.5 text-blue-300 dark:text-blue-700">|</span>
                   {m.title}
-                  <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">
+                  <span className="ml-2 text-xs bg-blue-200 dark:bg-blue-900/70 text-blue-800 dark:text-blue-100 px-1.5 py-0.5 rounded-full">
                     {mySchedules.filter((s) => s.moduleCode === m.code).length}
                   </span>
                 </span>
@@ -551,7 +550,7 @@ export default function Home() {
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-              <p className="mt-3 text-gray-500">Loading schedules...</p>
+              <p className="mt-3 text-gray-500 dark:text-gray-400">Loading schedules...</p>
             </div>
           ) : userView === "table" ? (
             <ScheduleTable
@@ -640,40 +639,40 @@ export default function Home() {
         />
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {schedules.length}
             </div>
-            <div className="text-xs text-gray-500 mt-1">Total Classes</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Classes</div>
           </div>
-          <div className="bg-blue-50 rounded-xl shadow-sm border border-blue-200 p-4">
-            <div className="text-2xl font-bold text-blue-900">
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl shadow-sm border border-blue-200 dark:border-blue-900/60 p-4">
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
               {schedules.filter((s) => s.classType === "Lecture").length}
             </div>
-            <div className="text-xs text-blue-600 mt-1">Lectures</div>
+            <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">Lectures</div>
           </div>
-          <div className="bg-green-50 rounded-xl shadow-sm border border-green-200 p-4">
-            <div className="text-2xl font-bold text-green-900">
+          <div className="bg-green-50 dark:bg-emerald-950/30 rounded-xl shadow-sm border border-green-200 dark:border-emerald-900/60 p-4">
+            <div className="text-2xl font-bold text-green-900 dark:text-emerald-100">
               {schedules.filter((s) => s.classType === "Tutorial").length}
             </div>
-            <div className="text-xs text-green-600 mt-1">Tutorials</div>
+            <div className="text-xs text-green-600 dark:text-emerald-300 mt-1">Tutorials</div>
           </div>
-          <div className="bg-purple-50 rounded-xl shadow-sm border border-purple-200 p-4">
-            <div className="text-2xl font-bold text-purple-900">
+          <div className="bg-purple-50 dark:bg-violet-950/30 rounded-xl shadow-sm border border-purple-200 dark:border-violet-900/60 p-4">
+            <div className="text-2xl font-bold text-purple-900 dark:text-violet-100">
               {schedules.filter((s) => s.classType === "Workshop").length}
             </div>
-            <div className="text-xs text-purple-600 mt-1">Workshops</div>
+            <div className="text-xs text-purple-600 dark:text-violet-300 mt-1">Workshops</div>
           </div>
-          <div className="bg-amber-50 rounded-xl shadow-sm border border-amber-200 p-4">
-            <div className="text-2xl font-bold text-amber-900">
+          <div className="bg-amber-50 dark:bg-amber-950/30 rounded-xl shadow-sm border border-amber-200 dark:border-amber-900/60 p-4">
+            <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">
               {new Set(schedules.map((s) => s.instructor)).size}
             </div>
-            <div className="text-xs text-amber-600 mt-1">Instructors</div>
+            <div className="text-xs text-amber-600 dark:text-amber-300 mt-1">Instructors</div>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-700">
+          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl p-4 mb-6 text-red-700 dark:text-red-200">
             {error}
           </div>
         )}
@@ -681,7 +680,7 @@ export default function Home() {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-            <p className="mt-3 text-gray-500">Loading schedules...</p>
+            <p className="mt-3 text-gray-500 dark:text-gray-400">Loading schedules...</p>
           </div>
         ) : userView === "table" ? (
           <ScheduleTable

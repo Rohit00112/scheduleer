@@ -29,12 +29,12 @@ export default function FilterBar({
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 mb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                 <select
                     value={filter.program || ""}
                     onChange={(e) => update("program", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Programs</option>
                     {programs.map((p) => (
@@ -45,7 +45,7 @@ export default function FilterBar({
                 <select
                     value={filter.year || ""}
                     onChange={(e) => update("year", e.target.value ? Number(e.target.value) : "")}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Years</option>
                     <option value="1">Year 1</option>
@@ -56,7 +56,7 @@ export default function FilterBar({
                 <select
                     value={filter.section || ""}
                     onChange={(e) => update("section", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Sections</option>
                     {sections.map((s) => (
@@ -67,7 +67,7 @@ export default function FilterBar({
                 <select
                     value={filter.day || ""}
                     onChange={(e) => update("day", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Days</option>
                     {DAYS.map((d) => (
@@ -78,7 +78,7 @@ export default function FilterBar({
                 <select
                     value={filter.classType || ""}
                     onChange={(e) => update("classType", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Types</option>
                     {CLASS_TYPES.map((t) => (
@@ -89,7 +89,7 @@ export default function FilterBar({
                 <select
                     value={filter.instructor || ""}
                     onChange={(e) => update("instructor", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Instructors</option>
                     {instructors.map((i) => (
@@ -100,7 +100,7 @@ export default function FilterBar({
                 <select
                     value={filter.room || ""}
                     onChange={(e) => update("room", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Rooms</option>
                     {rooms.map((r) => (
@@ -111,7 +111,7 @@ export default function FilterBar({
                 <select
                     value={filter.moduleCode || ""}
                     onChange={(e) => update("moduleCode", e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">All Modules</option>
                     {modules.map((m) => (
@@ -123,7 +123,7 @@ export default function FilterBar({
             <div className="mt-3 flex justify-end">
                 <button
                     onClick={() => onChange({})}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
                 >
                     Clear Filters
                 </button>
