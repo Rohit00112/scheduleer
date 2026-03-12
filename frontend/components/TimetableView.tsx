@@ -125,21 +125,10 @@ function TimeAxis() {
       className="relative border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
       style={{ height: `${DAY_HEIGHT_PX}px` }}
     >
-      {Array.from({ length: TIME_LABELS.length - 1 }, (_, index) => (
-        <div
-          key={`time-strip-${TIME_LABELS[index]}`}
-          className={index % 2 === 0 ? "absolute inset-x-0 bg-white dark:bg-gray-900" : "absolute inset-x-0 bg-gray-50/70 dark:bg-gray-950/70"}
-          style={{
-            top: `${index * SLOT_HEIGHT_PX}px`,
-            height: `${SLOT_HEIGHT_PX}px`,
-          }}
-        />
-      ))}
-
       {TIME_LABELS.map((time, index) => (
         <div
           key={time}
-          className="absolute inset-x-0 border-t border-gray-200 dark:border-gray-800"
+          className="absolute inset-x-0"
           style={{ top: `${index * SLOT_HEIGHT_PX}px` }}
         >
           <div
@@ -169,24 +158,7 @@ function DayColumn({ day, schedules }: { day: string; schedules: Schedule[] }) {
       className="relative border-r border-gray-200 dark:border-gray-800 last:border-r-0"
       style={{ height: `${DAY_HEIGHT_PX}px` }}
     >
-      {Array.from({ length: TIME_LABELS.length - 1 }, (_, index) => (
-        <div
-          key={`${day}-strip-${TIME_LABELS[index]}`}
-          className={index % 2 === 0 ? "absolute inset-x-0 bg-white dark:bg-gray-900" : "absolute inset-x-0 bg-gray-50/70 dark:bg-gray-950/70"}
-          style={{
-            top: `${index * SLOT_HEIGHT_PX}px`,
-            height: `${SLOT_HEIGHT_PX}px`,
-          }}
-        />
-      ))}
 
-      {TIME_LABELS.map((time, index) => (
-        <div
-          key={`${day}-line-${time}`}
-          className="absolute inset-x-0 border-t border-gray-200 dark:border-gray-800"
-          style={{ top: `${index * SLOT_HEIGHT_PX}px` }}
-        />
-      ))}
 
       {positioned.map((item) => (
         <div key={item.schedule.id} className="absolute z-10" style={getCardStyle(item)}>
