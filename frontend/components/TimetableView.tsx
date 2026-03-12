@@ -3,139 +3,275 @@
 import { Schedule } from "@/lib/types";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const TIME_SLOTS = [
-    "08:00 AM", "08:30 AM", "09:00 AM", "09:30 AM",
-    "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-    "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM",
-    "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
-    "04:00 PM",
+const TIME_LABELS = [
+  "08:00 AM",
+  "08:30 AM",
+  "09:00 AM",
+  "09:30 AM",
+  "10:00 AM",
+  "10:30 AM",
+  "11:00 AM",
+  "11:30 AM",
+  "12:00 PM",
+  "12:30 PM",
+  "01:00 PM",
+  "01:30 PM",
+  "02:00 PM",
+  "02:30 PM",
+  "03:00 PM",
+  "03:30 PM",
+  "04:00 PM",
 ];
+
 const SLOT_HEIGHT_PX = 56;
-const CELL_PADDING_PX = 8;
+const TIME_COLUMN_WIDTH_PX = 110;
+const DAY_COLUMN_MIN_WIDTH_PX = 240;
+const CARD_GAP_PX = 8;
+const DAY_HEIGHT_PX = (TIME_LABELS.length - 1) * SLOT_HEIGHT_PX;
 
 const CLASS_TYPE_COLORS: Record<string, string> = {
-    Lecture: "bg-blue-50 border-blue-300 text-blue-900 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-100",
-    Tutorial: "bg-green-50 border-green-300 text-green-900 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-100",
-    Workshop: "bg-purple-50 border-purple-300 text-purple-900 dark:bg-violet-950/30 dark:border-violet-800 dark:text-violet-100",
+  Lecture:
+    "bg-blue-50 border-blue-300 text-blue-900 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-100",
+  Tutorial:
+    "bg-green-50 border-green-300 text-green-900 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-100",
+  Workshop:
+    "bg-purple-50 border-purple-300 text-purple-900 dark:bg-violet-950/30 dark:border-violet-800 dark:text-violet-100",
+};
+
+type PositionedSchedule = {
+  schedule: Schedule;
+  top: number;
+  height: number;
+  column: number;
+  columns: number;
 };
 
 function timeToIndex(time: string): number {
-    return TIME_SLOTS.indexOf(time);
+  return TIME_LABELS.indexOf(time);
 }
 
-function getScheduleSpan(schedule: Schedule): number {
-    const span = timeToIndex(schedule.endTime) - timeToIndex(schedule.startTime);
-    return span > 0 ? span : 1;
+function getPositionedSchedules(daySchedules: Schedule[]): PositionedSchedule[] {
+  const items = daySchedules
+    .map((schedule) => ({
+      schedule,
+      start: timeToIndex(schedule.startTime),
+      end: timeToIndex(schedule.endTime),
+    }))
+    .filter((item) => item.start >= 0 && item.end > item.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+
+  const positioned: PositionedSchedule[] = [];
+  let active: Array<(typeof items)[number] & { column: number }> = [];
+  let cluster: Array<(typeof items)[number] & { column: number }> = [];
+  let clusterColumns = 1;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) {
+      return;
+    }
+
+    for (const item of cluster) {
+      positioned.push({
+        schedule: item.schedule,
+        top: item.start * SLOT_HEIGHT_PX,
+        height: (item.end - item.start) * SLOT_HEIGHT_PX,
+        column: item.column,
+        columns: clusterColumns,
+      });
+    }
+
+    cluster = [];
+    clusterColumns = 1;
+  };
+
+  for (const item of items) {
+    active = active.filter((entry) => entry.end > item.start);
+
+    if (active.length === 0) {
+      flushCluster();
+    }
+
+    const usedColumns = new Set(active.map((entry) => entry.column));
+    let column = 0;
+    while (usedColumns.has(column)) {
+      column += 1;
+    }
+
+    const positionedItem = { ...item, column };
+    active.push(positionedItem);
+    cluster.push(positionedItem);
+    clusterColumns = Math.max(clusterColumns, active.length, column + 1);
+  }
+
+  flushCluster();
+  return positioned;
+}
+
+function getCardStyle(item: PositionedSchedule) {
+  const width = `calc((100% - ${(item.columns + 1) * CARD_GAP_PX}px) / ${item.columns})`;
+  const left = `calc(${CARD_GAP_PX}px + ${item.column} * (${width} + ${CARD_GAP_PX}px))`;
+
+  return {
+    top: `${item.top + CARD_GAP_PX}px`,
+    left,
+    width,
+    height: `${Math.max(item.height - CARD_GAP_PX * 2, SLOT_HEIGHT_PX - CARD_GAP_PX * 2)}px`,
+  };
+}
+
+function TimeAxis() {
+  return (
+    <div
+      className="relative border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+      style={{ height: `${DAY_HEIGHT_PX}px` }}
+    >
+      {Array.from({ length: TIME_LABELS.length - 1 }, (_, index) => (
+        <div
+          key={`time-strip-${TIME_LABELS[index]}`}
+          className={index % 2 === 0 ? "absolute inset-x-0 bg-white dark:bg-gray-900" : "absolute inset-x-0 bg-gray-50/70 dark:bg-gray-950/70"}
+          style={{
+            top: `${index * SLOT_HEIGHT_PX}px`,
+            height: `${SLOT_HEIGHT_PX}px`,
+          }}
+        />
+      ))}
+
+      {TIME_LABELS.map((time, index) => (
+        <div
+          key={time}
+          className="absolute inset-x-0 border-t border-gray-200 dark:border-gray-800"
+          style={{ top: `${index * SLOT_HEIGHT_PX}px` }}
+        >
+          <div
+            className="px-6 text-xs font-mono text-gray-500 dark:text-gray-400"
+            style={{
+              transform:
+                index === 0
+                  ? "translateY(0)"
+                  : index === TIME_LABELS.length - 1
+                    ? "translateY(-100%)"
+                    : "translateY(-50%)",
+            }}
+          >
+            {time}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DayColumn({ day, schedules }: { day: string; schedules: Schedule[] }) {
+  const positioned = getPositionedSchedules(schedules);
+
+  return (
+    <div
+      className="relative border-r border-gray-200 dark:border-gray-800 last:border-r-0"
+      style={{ height: `${DAY_HEIGHT_PX}px` }}
+    >
+      {Array.from({ length: TIME_LABELS.length - 1 }, (_, index) => (
+        <div
+          key={`${day}-strip-${TIME_LABELS[index]}`}
+          className={index % 2 === 0 ? "absolute inset-x-0 bg-white dark:bg-gray-900" : "absolute inset-x-0 bg-gray-50/70 dark:bg-gray-950/70"}
+          style={{
+            top: `${index * SLOT_HEIGHT_PX}px`,
+            height: `${SLOT_HEIGHT_PX}px`,
+          }}
+        />
+      ))}
+
+      {TIME_LABELS.map((time, index) => (
+        <div
+          key={`${day}-line-${time}`}
+          className="absolute inset-x-0 border-t border-gray-200 dark:border-gray-800"
+          style={{ top: `${index * SLOT_HEIGHT_PX}px` }}
+        />
+      ))}
+
+      {positioned.map((item) => (
+        <div key={item.schedule.id} className="absolute z-10" style={getCardStyle(item)}>
+          <div
+            className={`flex h-full flex-col rounded-xl border px-4 py-3 text-xs shadow-sm ${CLASS_TYPE_COLORS[item.schedule.classType] || "bg-gray-50 border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"}`}
+          >
+            <div className="font-bold text-xl leading-none tracking-tight sm:text-lg">
+              {item.schedule.moduleCode}
+            </div>
+            <div className="mt-2 truncate text-[11px] opacity-85 sm:text-sm">
+              {item.schedule.moduleTitle}
+            </div>
+            <div className="mt-3 text-[11px] sm:text-sm">{item.schedule.instructor}</div>
+            <div className="text-[11px] opacity-75 sm:text-sm">
+              {item.schedule.room} | {item.schedule.group}
+            </div>
+            <div className="mt-auto pt-4 text-[11px] opacity-75 sm:text-sm">
+              {item.schedule.startTime} - {item.schedule.endTime}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 interface TimetableViewProps {
-    schedules: Schedule[];
+  schedules: Schedule[];
 }
 
 export default function TimetableView({ schedules }: TimetableViewProps) {
-    if (schedules.length === 0) {
-        return (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                <p className="text-lg font-medium">No schedules to display</p>
-                <p className="text-sm">Try adjusting your filters</p>
-            </div>
-        );
-    }
-
-    const groupedByDay: Record<string, Schedule[]> = {};
-    DAYS.forEach((day) => {
-        groupedByDay[day] = schedules.filter((s) => s.day === day);
-    });
-
+  if (schedules.length === 0) {
     return (
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="min-w-full">
-                    <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-800/80">
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase border-b border-r border-gray-200 dark:border-gray-800 w-20">
-                                Time
-                            </th>
-                            {DAYS.map((day) => (
-                                <th
-                                    key={day}
-                                    className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase border-b border-r border-gray-200 dark:border-gray-800"
-                                >
-                                    {day}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {TIME_SLOTS.map((time, idx) => (
-                            <tr
-                                key={time}
-                                className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-950/50"}
-                                style={{ height: `${SLOT_HEIGHT_PX}px` }}
-                            >
-                                <td className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800 whitespace-nowrap font-mono">
-                                    {time}
-                                </td>
-                                {DAYS.map((day) => {
-                                    const startingHere = groupedByDay[day]?.filter(
-                                        (s) => s.startTime === time
-                                    );
-                                    const rowSpan = Math.max(
-                                        ...(startingHere?.map(getScheduleSpan) ?? [1])
-                                    );
-                                    const occupying = groupedByDay[day]?.some(
-                                        (s) => {
-                                            const start = timeToIndex(s.startTime);
-                                            const end = timeToIndex(s.endTime);
-                                            return idx > start && idx < end;
-                                        }
-                                    );
-
-                                    if (occupying) return null;
-
-                                    if (startingHere && startingHere.length > 0) {
-                                        return (
-                                            <td
-                                                key={day}
-                                                className="px-1 py-1 border-r border-gray-200 dark:border-gray-800 align-top"
-                                                rowSpan={rowSpan}
-                                            >
-                                                <div className="space-y-1">
-                                                    {startingHere.map((s) => (
-                                                        <div
-                                                            key={s.id}
-                                                            className={`rounded-lg border p-2 text-xs ${CLASS_TYPE_COLORS[s.classType] || "bg-gray-50 border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"} ${startingHere.length === 1 ? "flex h-full flex-col" : ""}`}
-                                                            style={
-                                                                startingHere.length === 1
-                                                                    ? {
-                                                                        minHeight: `${getScheduleSpan(s) * SLOT_HEIGHT_PX - CELL_PADDING_PX}px`,
-                                                                    }
-                                                                    : undefined
-                                                            }
-                                                        >
-                                                            <div className="font-bold">{s.moduleCode}</div>
-                                                            <div className="text-[10px] opacity-75 truncate">{s.moduleTitle}</div>
-                                                            <div className="mt-1 text-[10px]">{s.instructor}</div>
-                                                            <div className="text-[10px] opacity-60">{s.room} | {s.group}</div>
-                                                            <div className={`text-[10px] opacity-60 ${startingHere.length === 1 ? "mt-auto pt-2" : ""}`}>
-                                                                {s.startTime} - {s.endTime}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                        );
-                                    }
-
-                                    return (
-                                        <td key={day} className="px-1 py-1 border-r border-gray-200 dark:border-gray-800" />
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+        <p className="text-lg font-medium">No schedules to display</p>
+        <p className="text-sm">Try adjusting your filters</p>
+      </div>
     );
+  }
+
+  const groupedByDay = Object.fromEntries(
+    DAYS.map((day) => [day, schedules.filter((schedule) => schedule.day === day)]),
+  ) as Record<string, Schedule[]>;
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <div className="overflow-x-auto">
+        <div
+          className="min-w-max"
+          style={{
+            minWidth: `${TIME_COLUMN_WIDTH_PX + DAYS.length * DAY_COLUMN_MIN_WIDTH_PX}px`,
+          }}
+        >
+          <div
+            className="grid border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80"
+            style={{
+              gridTemplateColumns: `${TIME_COLUMN_WIDTH_PX}px repeat(${DAYS.length}, minmax(${DAY_COLUMN_MIN_WIDTH_PX}px, 1fr))`,
+            }}
+          >
+            <div className="px-6 py-4 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-800">
+              Time
+            </div>
+            {DAYS.map((day) => (
+              <div
+                key={day}
+                className="px-4 py-4 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-800 last:border-r-0"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `${TIME_COLUMN_WIDTH_PX}px repeat(${DAYS.length}, minmax(${DAY_COLUMN_MIN_WIDTH_PX}px, 1fr))`,
+            }}
+          >
+            <TimeAxis />
+            {DAYS.map((day) => (
+              <DayColumn key={day} day={day} schedules={groupedByDay[day]} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
