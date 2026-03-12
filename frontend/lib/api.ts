@@ -1,7 +1,5 @@
 import { Schedule, ScheduleFilter, AuthResponse, AuthUser, Conflict, AuditLog, Announcement, RoomUtilizationData, DashboardStats, ModuleCatalogItem, TeacherAssignmentItem, ProgramSummary, ImportResult } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
-
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
     return localStorage.getItem("token");
@@ -17,7 +15,7 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(path, {
         ...init,
         headers,
     });
@@ -25,6 +23,12 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || `API error: ${res.status} ${res.statusText}`);
     }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+        return undefined as T;
+    }
+
     return res.json();
 }
 
@@ -113,7 +117,7 @@ export async function getModules(): Promise<{ code: string; title: string }[]> {
 
 export async function exportExcel(): Promise<void> {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/api/schedules/export`, {
+    const res = await fetch("/api/schedules/export", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error("Export failed");
@@ -129,7 +133,7 @@ export async function exportExcel(): Promise<void> {
 // CSV Export
 export async function exportCsv(): Promise<void> {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/api/schedules/export/csv`, {
+    const res = await fetch("/api/schedules/export/csv", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error("CSV export failed");
@@ -147,7 +151,7 @@ export async function importExcel(file: File): Promise<ImportResult> {
     const token = getToken();
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch(`${API_BASE}/api/schedules/import`, {
+    const res = await fetch("/api/schedules/import", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -231,22 +235,24 @@ export async function getTeacherAssignments(moduleCode?: string): Promise<Teache
     return fetchApi<TeacherAssignmentItem[]>(path);
 }
 
-export async function createUser(username: string, password: string, role?: string): Promise<any> {
-    return fetchApi("/api/users", {
+type UserRecord = { id: number; username: string; role: string; mustChangePassword: boolean; instructorName: string | null };
+
+export async function createUser(username: string, password: string, role?: string): Promise<UserRecord> {
+    return fetchApi<UserRecord>("/api/users", {
         method: "POST",
         body: JSON.stringify({ username, password, role }),
     });
 }
 
-export async function updateUserRole(id: number, role: string): Promise<any> {
-    return fetchApi(`/api/users/${id}/role`, {
+export async function updateUserRole(id: number, role: string): Promise<UserRecord> {
+    return fetchApi<UserRecord>(`/api/users/${id}/role`, {
         method: "PUT",
         body: JSON.stringify({ role }),
     });
 }
 
-export async function resetUserPassword(id: number, password: string): Promise<any> {
-    return fetchApi(`/api/users/${id}/password`, {
+export async function resetUserPassword(id: number, password: string): Promise<{ success: boolean }> {
+    return fetchApi<{ success: boolean }>(`/api/users/${id}/password`, {
         method: "PUT",
         body: JSON.stringify({ password }),
     });
