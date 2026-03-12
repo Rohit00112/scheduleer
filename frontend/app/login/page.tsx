@@ -112,15 +112,6 @@ export default function LoginPage() {
                             {isRegister ? "Sign in" : "Create one"}
                         </button>
                     </div>
-
-                    {!isRegister && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-                            <p className="font-medium text-gray-600 mb-1">Demo accounts:</p>
-                            <p>Admin: <span className="font-mono">admin</span> / <span className="font-mono">admin123</span></p>
-                            <p>User: <span className="font-mono">user</span> / <span className="font-mono">user123</span></p>
-                            <p className="mt-1">Instructors: <span className="font-mono">firstname.lastname</span> / <span className="font-mono">instructor123</span></p>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

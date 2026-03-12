@@ -14,38 +14,51 @@ function generateUsername(instructorName: string): string {
         .replace(/\s+/g, '.');
 }
 
-async function seed() {
+function getDataSourceConfig(): any {
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl) {
+        return {
+            type: 'postgres',
+            url: dbUrl,
+            entities: [Schedule, User],
+            synchronize: true,
+            ssl: dbUrl.includes('render.com') ? { rejectUnauthorized: false } : undefined,
+        };
+    }
     const dbDir = join(__dirname, '..', 'data');
     mkdirSync(dbDir, { recursive: true });
-
-    const ds = new DataSource({
+    return {
         type: 'sqlite',
         database: join(dbDir, 'scheduler.db'),
         entities: [Schedule, User],
         synchronize: true,
-    });
+    };
+}
+
+async function seed() {
+    const ds = new DataSource(getDataSourceConfig());
 
     await ds.initialize();
 
-    // Seed schedules
+    // Seed schedules only if empty
     const scheduleRepo = ds.getRepository(Schedule);
     const count = await scheduleRepo.count();
     if (count > 0) {
-        console.log(`Database already has ${count} records. Clearing...`);
-        await scheduleRepo.clear();
-    }
+        console.log(`Database already has ${count} schedule records. Skipping seed.`);
+    } else {
 
-    const seedData: any[] = JSON.parse(
-        readFileSync(join(__dirname, 'seed-data.json'), 'utf-8'),
-    );
-    const batchSize = 50;
-    let total = 0;
-    for (let i = 0; i < seedData.length; i += batchSize) {
-        const batch = seedData.slice(i, i + batchSize);
-        await scheduleRepo.save(batch as any);
-        total += batch.length;
+        const seedData: any[] = JSON.parse(
+            readFileSync(join(__dirname, 'seed-data.json'), 'utf-8'),
+        );
+        const batchSize = 50;
+        let total = 0;
+        for (let i = 0; i < seedData.length; i += batchSize) {
+            const batch = seedData.slice(i, i + batchSize);
+            await scheduleRepo.save(batch as any);
+            total += batch.length;
+        }
+        console.log(`Seeded ${total} schedule records.`);
     }
-    console.log(`Seeded ${total} schedule records.`);
 
     // Seed users
     const userRepo = ds.getRepository(User);

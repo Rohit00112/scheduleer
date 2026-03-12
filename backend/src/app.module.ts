@@ -21,15 +21,31 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { join } from 'path';
 
+const entities = [Schedule, User, AuditLog, Announcement, Room, ModuleCatalog, TeacherAssignment];
+
+function getTypeOrmConfig(): Parameters<typeof TypeOrmModule.forRoot>[0] {
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl) {
+    return {
+      type: 'postgres',
+      url: dbUrl,
+      entities,
+      synchronize: true,
+      ssl: dbUrl.includes('render.com') ? { rejectUnauthorized: false } : undefined,
+    };
+  }
+  return {
+    type: 'sqlite',
+    database: join(__dirname, '..', 'data', 'scheduler.db'),
+    entities,
+    synchronize: true,
+  };
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: join(__dirname, '..', 'data', 'scheduler.db'),
-      entities: [Schedule, User, AuditLog, Announcement, Room, ModuleCatalog, TeacherAssignment],
-      synchronize: true,
-    }),
+    TypeOrmModule.forRoot(getTypeOrmConfig()),
     SchedulesModule,
     AuthModule,
     AnnouncementsModule,
