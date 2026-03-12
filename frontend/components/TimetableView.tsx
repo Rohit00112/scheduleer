@@ -191,19 +191,19 @@ function DayColumn({ day, schedules }: { day: string; schedules: Schedule[] }) {
       {positioned.map((item) => (
         <div key={item.schedule.id} className="absolute z-10" style={getCardStyle(item)}>
           <div
-            className={`flex h-full flex-col rounded-xl border px-4 py-3 text-xs shadow-sm ${CLASS_TYPE_COLORS[item.schedule.classType] || "bg-gray-50 border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"}`}
+            className={`flex h-full flex-col overflow-hidden rounded-lg border px-2.5 py-2 text-xs shadow-sm ${CLASS_TYPE_COLORS[item.schedule.classType] || "bg-gray-50 border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"}`}
           >
-            <div className="font-bold text-xl leading-none tracking-tight sm:text-lg">
+            <div className="font-bold text-sm leading-tight tracking-tight">
               {item.schedule.moduleCode}
             </div>
-            <div className="mt-2 truncate text-[11px] opacity-85 sm:text-sm">
+            <div className="mt-0.5 truncate text-[11px] opacity-80">
               {item.schedule.moduleTitle}
             </div>
-            <div className="mt-3 text-[11px] sm:text-sm">{item.schedule.instructor}</div>
-            <div className="text-[11px] opacity-75 sm:text-sm">
+            <div className="mt-1 text-[11px] leading-snug">{item.schedule.instructor}</div>
+            <div className="text-[11px] leading-snug opacity-75">
               {item.schedule.room} | {item.schedule.group}
             </div>
-            <div className="mt-auto pt-4 text-[11px] opacity-75 sm:text-sm">
+            <div className="mt-auto pt-1 text-[11px] opacity-75">
               {item.schedule.startTime} - {item.schedule.endTime}
             </div>
           </div>
