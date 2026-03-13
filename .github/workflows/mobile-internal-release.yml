@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: mobile-internal-release-${{ github.ref }}
@@ -53,5 +53,73 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Trigger Android internal build
-        run: npm run build:android:preview
+      - name: Build Android preview and download APK
+        id: build
+        run: |
+          set -euo pipefail
+
+          BUILD_JSON_PATH="$RUNNER_TEMP/eas-build.json"
+          BUILD_VIEW_JSON_PATH="$RUNNER_TEMP/eas-build-view.json"
+
+          eas build --platform android --profile preview --non-interactive --wait --json > "$BUILD_JSON_PATH"
+
+          BUILD_ID="$(jq -r 'if type=="array" then .[0].id else .id end' "$BUILD_JSON_PATH")"
+          BUILD_URL="$(jq -r 'if type=="array" then .[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl else .artifacts.buildUrl // .artifacts.applicationArchiveUrl end // empty' "$BUILD_JSON_PATH")"
+          BUILD_DETAILS_URL="$(jq -r 'if type=="array" then .[0].buildDetailsPageUrl else .buildDetailsPageUrl end // empty' "$BUILD_JSON_PATH")"
+
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "Could not determine the EAS build ID from the build output."
+            exit 1
+          fi
+
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            eas build:view "$BUILD_ID" --json > "$BUILD_VIEW_JSON_PATH"
+            BUILD_URL="$(jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty' "$BUILD_VIEW_JSON_PATH")"
+            BUILD_DETAILS_URL="$(jq -r '.buildDetailsPageUrl // empty' "$BUILD_VIEW_JSON_PATH")"
+          fi
+
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "Could not determine the APK download URL from EAS build output."
+            exit 1
+          fi
+
+          APK_NAME="schedule-manager-mobile-preview-${GITHUB_RUN_NUMBER}.apk"
+          APK_PATH="$RUNNER_TEMP/$APK_NAME"
+
+          curl -L --fail "$BUILD_URL" -o "$APK_PATH"
+
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          echo "build_details_url=$BUILD_DETAILS_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-preview-apk-${{ github.run_number }}
+          path: ${{ steps.build.outputs.apk_path }}
+
+      - name: Publish GitHub prerelease with APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_TAG="mobile-preview-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          RELEASE_TITLE="Mobile Preview APK #${GITHUB_RUN_NUMBER}"
+          SHORT_SHA="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          RELEASE_NOTES_PATH="$RUNNER_TEMP/mobile-preview-release-notes.txt"
+
+          cat > "$RELEASE_NOTES_PATH" <<EOF
+          Automated Android preview APK for commit ${SHORT_SHA}.
+
+          Commit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          EAS build: ${{ steps.build.outputs.build_details_url }}
+          EAS build ID: ${{ steps.build.outputs.build_id }}
+          EOF
+
+          gh release create "$RELEASE_TAG" "${{ steps.build.outputs.apk_path }}" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_TITLE" \
+            --notes-file "$RELEASE_NOTES_PATH" \
+            --prerelease

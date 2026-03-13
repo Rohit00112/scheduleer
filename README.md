@@ -80,6 +80,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Pushes to `main` that touch `mobile/**` trigger the GitHub Actions Android internal build workflow
 - Add `EXPO_TOKEN` to the repository GitHub Actions secrets before enabling the workflow
 - Configure Expo-managed Android credentials once for the `mobile/` project so EAS can build non-interactively from CI
+- Each successful mobile workflow publishes a GitHub prerelease with the generated Android `.apk` attached and also uploads the APK as a workflow artifact
 
 ## API Endpoints
 
