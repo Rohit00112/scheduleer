@@ -5,9 +5,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-    const { login, register, user } = useAuth();
+    const { login, user } = useAuth();
     const router = useRouter();
-    const [isRegister, setIsRegister] = useState(false);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -28,11 +27,7 @@ export default function LoginPage() {
         setError("");
         setLoading(true);
         try {
-            if (isRegister) {
-                await register(username, password);
-            } else {
-                await login(username, password);
-            }
+            await login(username, password);
             router.push("/");
         } catch (err: any) {
             setError(err.message || "Something went wrong");
@@ -52,9 +47,10 @@ export default function LoginPage() {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                        {isRegister ? "Create Account" : "Sign In"}
-                    </h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Sign In</h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Accounts are managed by administrators. Use your assigned username and password.
+                    </p>
 
                     {error && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">
@@ -96,22 +92,9 @@ export default function LoginPage() {
                             disabled={loading}
                             className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
                         >
-                            {loading ? "Please wait..." : isRegister ? "Create Account" : "Sign In"}
+                            {loading ? "Please wait..." : "Sign In"}
                         </button>
                     </form>
-
-                    <div className="mt-6 text-center text-sm text-gray-500">
-                        {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
-                        <button
-                            onClick={() => {
-                                setIsRegister(!isRegister);
-                                setError("");
-                            }}
-                            className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                            {isRegister ? "Sign in" : "Create one"}
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

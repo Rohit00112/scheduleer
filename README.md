@@ -74,6 +74,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Configure Telegram to call `POST /api/telegram/webhook`
 - Configure Twilio to call `POST /whatsapp/webhook`
 
+## Mobile Internal Builds
+
+- The Expo mobile app is configured from `mobile/app.json` and `mobile/eas.json`
+- Pushes to `main` that touch `mobile/**` trigger the GitHub Actions Android internal build workflow
+- Add `EXPO_TOKEN` to the repository GitHub Actions secrets before enabling the workflow
+- Configure Expo-managed Android credentials once for the `mobile/` project so EAS can build non-interactively from CI
+
 ## API Endpoints
 
 | Method | Endpoint | Description |

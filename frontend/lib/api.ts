@@ -40,13 +40,6 @@ export async function login(username: string, password: string): Promise<AuthRes
     });
 }
 
-export async function register(username: string, password: string): Promise<AuthResponse> {
-    return fetchApi<AuthResponse>("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-    });
-}
-
 export async function getMe(): Promise<AuthUser | null> {
     try {
         return await fetchApi("/api/auth/me");

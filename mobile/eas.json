@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 18.3.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://scheduleer.vercel.app"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://scheduleer.vercel.app"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "autoIncrement": true
+    }
+  }
+}

@@ -7,7 +7,6 @@ import type {
   ChangePasswordInput,
   CreateUserInput,
   LoginInput,
-  RegisterInput,
 } from "../validation";
 import { getRepositories } from "./repositories";
 
@@ -17,25 +16,6 @@ export function generateUsername(instructorName: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ".");
-}
-
-export async function registerUser(input: RegisterInput) {
-  const { userRepo } = await getRepositories();
-  const existing = await userRepo.findOne({ where: { username: input.username } });
-  if (existing) {
-    throw new ApiError(409, "Username already exists");
-  }
-
-  const user = userRepo.create({
-    username: input.username,
-    password: await hash(input.password, 10),
-    role: input.role || UserRole.USER,
-    mustChangePassword: false,
-    instructorName: null,
-  });
-
-  await userRepo.save(user);
-  return buildTokenResponse(user);
 }
 
 export async function loginUser(input: LoginInput) {

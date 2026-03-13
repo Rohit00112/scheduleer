@@ -34,12 +34,6 @@ export const loginSchema = z.object({
   password: z.string(),
 });
 
-export const registerSchema = z.object({
-  username: z.string().trim().min(3),
-  password: z.string().min(6),
-  role: userRoleSchema.optional(),
-});
-
 export const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),
   newPassword: z.string().min(6),
@@ -115,7 +109,6 @@ export const whatsappTestSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;

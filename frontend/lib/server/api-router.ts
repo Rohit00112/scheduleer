@@ -13,7 +13,6 @@ import {
   createScheduleSchema,
   createUserSchema,
   loginSchema,
-  registerSchema,
   resetUserPasswordSchema,
   scheduleFilterSchema,
   updateScheduleSchema,
@@ -33,7 +32,6 @@ import {
   findUserById,
   listUsers,
   loginUser,
-  registerUser,
   resetUserPassword,
   updateUserRole,
 } from "./services/auth-users";
@@ -110,10 +108,6 @@ export async function handleApiRequest(request: NextRequest): Promise<Response> 
 async function handleAuthRoute(request: NextRequest, method: string, segments: string[]) {
   if (segments.length === 1 && segments[0] === "login" && method === "POST") {
     return json(await loginUser(loginSchema.parse(await request.json())));
-  }
-
-  if (segments.length === 1 && segments[0] === "register" && method === "POST") {
-    return json(await registerUser(registerSchema.parse(await request.json())));
   }
 
   if (segments.length === 1 && segments[0] === "change-password" && method === "POST") {

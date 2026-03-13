@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -22,37 +24,39 @@ import {
   getMe,
   getSchedules,
   login,
-  register,
 } from "./src/api";
+import { getAnnouncementTheme, getClassTheme, getRoleGradient, palette, radii, shadows } from "./src/theme";
 import type { Announcement, AuthResponse, AuthUser, Schedule } from "./src/types";
 
 const TOKEN_STORAGE_KEY = "scheduler.mobile.token";
-const DAYS = ["All", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const DAYS = ["All", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 const CLASS_TYPE_FILTERS = ["All", "Lecture", "Tutorial", "Workshop"] as const;
 const DAY_ORDER = DAYS.slice(1);
 
-type AuthMode = "login" | "register";
 type ClassTypeFilter = (typeof CLASS_TYPE_FILTERS)[number];
 
-type AccentTheme = {
-  softBackground: string;
-  softBorder: string;
-  softText: string;
-  solidBackground: string;
-  solidText: string;
-};
+function parseTimeToMinutes(value: string): number | null {
+  const normalized = value.trim();
+  const match = normalized.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  if (!match) {
+    return null;
+  }
 
-function sortSchedules(items: Schedule[]): Schedule[] {
-  return [...items].sort((left, right) => {
-    const leftDay = DAY_ORDER.indexOf(left.day);
-    const rightDay = DAY_ORDER.indexOf(right.day);
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const meridiem = match[3]?.toUpperCase();
 
-    if (leftDay !== rightDay) {
-      return leftDay - rightDay;
-    }
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
 
-    return left.startTime.localeCompare(right.startTime);
-  });
+  if (meridiem === "PM" && hours < 12) {
+    hours += 12;
+  } else if (meridiem === "AM" && hours === 12) {
+    hours = 0;
+  }
+
+  return hours * 60 + minutes;
 }
 
 function getDisplaySection(schedule: Schedule): string {
@@ -85,15 +89,44 @@ function getDisplaySection(schedule: Schedule): string {
   return Array.from(new Set(sections)).join("+") || schedule.section;
 }
 
-function filterSchedules(items: Schedule[], search: string): Schedule[] {
+function sortSchedules(items: Schedule[]): Schedule[] {
+  return [...items].sort((left, right) => {
+    const leftDay = DAY_ORDER.indexOf(left.day as (typeof DAY_ORDER)[number]);
+    const rightDay = DAY_ORDER.indexOf(right.day as (typeof DAY_ORDER)[number]);
+
+    if (leftDay !== rightDay) {
+      return leftDay - rightDay;
+    }
+
+    const leftStart = parseTimeToMinutes(left.startTime) ?? 0;
+    const rightStart = parseTimeToMinutes(right.startTime) ?? 0;
+    return leftStart - rightStart;
+  });
+}
+
+function filterSchedules(
+  items: Schedule[],
+  search: string,
+  selectedDay: string,
+  selectedClassType: ClassTypeFilter,
+): Schedule[] {
   const query = search.trim().toLowerCase();
-  if (!query) {
-    return sortSchedules(items);
-  }
 
   return sortSchedules(
-    items.filter((item) =>
-      [
+    items.filter((item) => {
+      if (selectedDay !== "All" && item.day !== selectedDay) {
+        return false;
+      }
+
+      if (selectedClassType !== "All" && item.classType !== selectedClassType) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [
         item.day,
         item.moduleCode,
         item.moduleTitle,
@@ -107,75 +140,118 @@ function filterSchedules(items: Schedule[], search: string): Schedule[] {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query),
-    ),
+        .includes(query);
+    }),
   );
 }
 
-function getClassTheme(classType: string): AccentTheme {
-  switch (classType) {
-    case "Lecture":
-      return {
-        softBackground: "#eff6ff",
-        softBorder: "#bfdbfe",
-        softText: "#1d4ed8",
-        solidBackground: "#2563eb",
-        solidText: "#ffffff",
-      };
-    case "Tutorial":
-      return {
-        softBackground: "#ecfdf5",
-        softBorder: "#bbf7d0",
-        softText: "#15803d",
-        solidBackground: "#16a34a",
-        solidText: "#ffffff",
-      };
-    case "Workshop":
-      return {
-        softBackground: "#faf5ff",
-        softBorder: "#e9d5ff",
-        softText: "#7e22ce",
-        solidBackground: "#9333ea",
-        solidText: "#ffffff",
-      };
-    default:
-      return {
-        softBackground: "#f3f4f6",
-        softBorder: "#d1d5db",
-        softText: "#4b5563",
-        solidBackground: "#6b7280",
-        solidText: "#ffffff",
-      };
-  }
+function getTodayScheduleDay(now: Date): string | null {
+  const day = now.toLocaleDateString("en-US", { weekday: "long" });
+  return DAY_ORDER.includes(day as (typeof DAY_ORDER)[number]) ? day : null;
 }
 
-function getAnnouncementTheme(type: Announcement["type"]) {
-  switch (type) {
-    case "urgent":
-      return {
-        background: "#fef2f2",
-        border: "#fecaca",
-        accent: "#dc2626",
-      };
-    case "warning":
-      return {
-        background: "#fffbeb",
-        border: "#fde68a",
-        accent: "#d97706",
-      };
-    default:
-      return {
-        background: "#eff6ff",
-        border: "#bfdbfe",
-        accent: "#2563eb",
-      };
+function getGreeting(now: Date): string {
+  const hour = now.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getFriendlyDate(now: Date): string {
+  return now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function getScheduleMomentum(items: Schedule[], now: Date) {
+  const today = getTodayScheduleDay(now);
+  const todayIndex = today ? DAY_ORDER.indexOf(today as (typeof DAY_ORDER)[number]) : -1;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  let current: Schedule | null = null;
+  const upcoming: Array<{ schedule: Schedule; deltaDays: number; startMinutes: number }> = [];
+
+  for (const schedule of items) {
+    const dayIndex = DAY_ORDER.indexOf(schedule.day as (typeof DAY_ORDER)[number]);
+    const startMinutes = parseTimeToMinutes(schedule.startTime);
+    const endMinutes = parseTimeToMinutes(schedule.endTime);
+
+    if (dayIndex === -1 || startMinutes === null || endMinutes === null) {
+      continue;
+    }
+
+    const deltaDays =
+      todayIndex === -1 ? dayIndex + 1 : (dayIndex - todayIndex + DAY_ORDER.length) % DAY_ORDER.length;
+
+    if (deltaDays === 0 && startMinutes <= nowMinutes && nowMinutes < endMinutes) {
+      if (!current || (parseTimeToMinutes(current.startTime) ?? 0) < startMinutes) {
+        current = schedule;
+      }
+      continue;
+    }
+
+    if (deltaDays === 0 && startMinutes <= nowMinutes) {
+      continue;
+    }
+
+    upcoming.push({ schedule, deltaDays, startMinutes });
   }
+
+  upcoming.sort((left, right) => {
+    if (left.deltaDays !== right.deltaDays) {
+      return left.deltaDays - right.deltaDays;
+    }
+
+    return left.startMinutes - right.startMinutes;
+  });
+
+  return {
+    current,
+    next: upcoming[0]?.schedule ?? null,
+  };
+}
+
+function getHeroFocus(schedule: Schedule | null, kind: "current" | "next" | "idle", now: Date) {
+  if (!schedule) {
+    return {
+      badge: "Clear runway",
+      title: "No class in progress",
+      detail: "Use search or day filters to review the full week.",
+      caption: "Your schedule is quiet right now.",
+      theme: getClassTheme("default"),
+    };
+  }
+
+  const theme = getClassTheme(schedule.classType);
+  const today = getTodayScheduleDay(now);
+  const dayLabel = schedule.day === today ? "Today" : schedule.day;
+  const timeLabel = `${schedule.startTime} - ${schedule.endTime}`;
+
+  if (kind === "current") {
+    return {
+      badge: "On now",
+      title: `${schedule.moduleCode} in ${schedule.room}`,
+      detail: `${schedule.moduleTitle} · ${timeLabel}`,
+      caption: `${dayLabel} · ${schedule.classType} with ${schedule.instructor}`,
+      theme,
+    };
+  }
+
+  return {
+    badge: "Next class",
+    title: `${schedule.moduleCode} starts at ${schedule.startTime}`,
+    detail: `${schedule.moduleTitle} · ${schedule.room}`,
+    caption: `${dayLabel} · ${schedule.classType} with ${schedule.instructor}`,
+    theme,
+  };
 }
 
 function formatRole(role: AuthUser["role"]) {
-  if (role === "admin") return "admin";
-  if (role === "instructor") return "instructor";
-  return "viewer";
+  if (role === "admin") return "Admin";
+  if (role === "instructor") return "Instructor";
+  return "Viewer";
 }
 
 function getClassTypeLabel(value: ClassTypeFilter) {
@@ -186,124 +262,191 @@ function getClassTypeLabel(value: ClassTypeFilter) {
   return `${value}s`;
 }
 
+function AuthShell({
+  eyebrow,
+  title,
+  subtitle,
+  panelTitle,
+  panelSubtitle,
+  footerNote,
+  error,
+  loading,
+  buttonLabel,
+  onSubmit,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  panelTitle: string;
+  panelSubtitle: string;
+  footerNote: string;
+  error: string | null;
+  loading: boolean;
+  buttonLabel: string;
+  onSubmit: () => void;
+  children: ReactNode;
+}) {
+  const { width } = useWindowDimensions();
+  const isWide = width >= 860;
+  const contentWidth = Math.min(width - 24, 1040);
+
+  return (
+    <SafeAreaView style={styles.authSafeArea} edges={["top", "bottom", "left", "right"]}>
+      <StatusBar style="light" />
+      <KeyboardAvoidingView
+        style={styles.authRoot}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.authBackdrop}>
+          <View style={styles.authGlowTop} />
+          <View style={styles.authGlowBottom} />
+        </View>
+
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.authScroll, { paddingHorizontal: 12 }]}
+        >
+          <View
+            style={[
+              styles.authFrame,
+              {
+                width: contentWidth,
+                flexDirection: isWide ? "row" : "column",
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["#081f54", "#2458d3", "#6bb2ff"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.authHeroCard,
+                shadows.hero,
+                {
+                  minHeight: isWide ? 560 : 360,
+                  width: isWide ? contentWidth * 0.54 : "100%",
+                },
+              ]}
+            >
+              <View style={styles.authHeroOrbLarge} />
+              <View style={styles.authHeroOrbSmall} />
+
+              <Text style={styles.authHeroEyebrow}>{eyebrow}</Text>
+              <Text style={styles.authHeroTitle}>{title}</Text>
+              <Text style={styles.authHeroSubtitle}>{subtitle}</Text>
+
+              <View style={styles.authStatGrid}>
+                <View style={styles.authStatCard}>
+                  <Text style={styles.authStatLabel}>Live visibility</Text>
+                  <Text style={styles.authStatValue}>Weekly view</Text>
+                  <Text style={styles.authStatMeta}>Track today, next class, and filters in one place.</Text>
+                </View>
+                <View style={styles.authStatCard}>
+                  <Text style={styles.authStatLabel}>Admin managed</Text>
+                  <Text style={styles.authStatValue}>No signup</Text>
+                  <Text style={styles.authStatMeta}>Accounts are provisioned internally for staff and admins.</Text>
+                </View>
+                <View style={styles.authStatCard}>
+                  <Text style={styles.authStatLabel}>Mobile ready</Text>
+                  <Text style={styles.authStatValue}>Responsive</Text>
+                  <Text style={styles.authStatMeta}>Optimized for compact phones and tablet portrait layouts.</Text>
+                </View>
+              </View>
+            </LinearGradient>
+
+            <View style={[styles.authPanel, shadows.card, { width: isWide ? contentWidth * 0.46 - 18 : "100%" }]}>
+              <View style={styles.authPanelHeader}>
+                <Text style={styles.authPanelTitle}>{panelTitle}</Text>
+                <Text style={styles.authPanelSubtitle}>{panelSubtitle}</Text>
+              </View>
+
+              {error ? (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.fieldStack}>{children}</View>
+
+              <Pressable onPress={onSubmit} disabled={loading} style={styles.primaryButton}>
+                {loading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+                )}
+              </Pressable>
+
+              <View style={styles.authFootnote}>
+                <Text style={styles.authFootnoteText}>{footerNote}</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
 function AuthScreen({
-  mode,
   loading,
   error,
   username,
   password,
-  onModeChange,
   onUsernameChange,
   onPasswordChange,
   onSubmit,
 }: {
-  mode: AuthMode;
   loading: boolean;
   error: string | null;
   username: string;
   password: string;
-  onModeChange: (mode: AuthMode) => void;
   onUsernameChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: () => void;
 }) {
   return (
-    <SafeAreaView style={styles.authSafeArea} edges={["top", "bottom", "left", "right"]}>
-      <KeyboardAvoidingView
-        style={styles.authRoot}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <StatusBar style="dark" />
-        <ScrollView contentContainerStyle={styles.authScroll}>
-          <View style={styles.authHero}>
-            <Text style={styles.authEyebrow}>Schedule Manager</Text>
-            <Text style={styles.authTitle}>Built for the week, not the spreadsheet.</Text>
-            <Text style={styles.authSubtitle}>
-              London Metropolitan University · Spring 2026
-            </Text>
-          </View>
+    <AuthShell
+      eyebrow="Schedule Manager"
+      title="Keep the academic week in motion."
+      subtitle="Monitor teaching activity, announcements, and the next room switch without digging through spreadsheets."
+      panelTitle="Sign in"
+      panelSubtitle="Use your administrator-issued credentials to access the mobile schedule dashboard."
+      footerNote="Need an account or a reset? Contact an administrator from the web dashboard."
+      error={error}
+      loading={loading}
+      buttonLabel="Sign In"
+      onSubmit={onSubmit}
+    >
+      <View>
+        <Text style={styles.fieldLabel}>Username</Text>
+        <TextInput
+          value={username}
+          onChangeText={onUsernameChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="username"
+          style={styles.input}
+          placeholder="Enter your username"
+          placeholderTextColor={palette.subtle}
+        />
+      </View>
 
-          <View style={styles.authPanel}>
-            <View style={styles.authModeSwitch}>
-              <Pressable
-                onPress={() => onModeChange("login")}
-                style={[styles.authModeButton, mode === "login" ? styles.authModeButtonActive : null]}
-              >
-                <Text
-                  style={[
-                    styles.authModeButtonText,
-                    mode === "login" ? styles.authModeButtonTextActive : null,
-                  ]}
-                >
-                  Sign In
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onModeChange("register")}
-                style={[
-                  styles.authModeButton,
-                  mode === "register" ? styles.authModeButtonActive : null,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.authModeButtonText,
-                    mode === "register" ? styles.authModeButtonTextActive : null,
-                  ]}
-                >
-                  Create Account
-                </Text>
-              </Pressable>
-            </View>
-
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.fieldStack}>
-              <View>
-                <Text style={styles.fieldLabel}>Username</Text>
-                <TextInput
-                  value={username}
-                  onChangeText={onUsernameChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.input}
-                  placeholder="Enter your username"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.fieldLabel}>Password</Text>
-                <TextInput
-                  value={password}
-                  onChangeText={onPasswordChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-            </View>
-
-            <Pressable onPress={onSubmit} disabled={loading} style={styles.primaryButton}>
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>
-                  {mode === "login" ? "Continue" : "Create Account"}
-                </Text>
-              )}
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View>
+        <Text style={styles.fieldLabel}>Password</Text>
+        <TextInput
+          value={password}
+          onChangeText={onPasswordChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          secureTextEntry
+          style={styles.input}
+          placeholder="Enter your password"
+          placeholderTextColor={palette.subtle}
+        />
+      </View>
+    </AuthShell>
   );
 }
 
@@ -329,145 +472,254 @@ function ChangePasswordScreen({
   onSubmit: () => void;
 }) {
   return (
-    <SafeAreaView style={styles.authSafeArea} edges={["top", "bottom", "left", "right"]}>
-      <KeyboardAvoidingView
-        style={styles.authRoot}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <StatusBar style="dark" />
-        <ScrollView contentContainerStyle={styles.authScroll}>
-          <View style={styles.authHero}>
-            <Text style={styles.authEyebrow}>Security Update</Text>
-            <Text style={styles.authTitle}>Change your password to unlock the schedule.</Text>
-            <Text style={styles.authSubtitle}>This account requires a password reset first.</Text>
-          </View>
+    <AuthShell
+      eyebrow="Security update"
+      title="Protect the week before you enter it."
+      subtitle="Your account requires a password change before the mobile dashboard unlocks."
+      panelTitle="Change password"
+      panelSubtitle="Choose a new password for this account. You will use it for future sign-ins."
+      footerNote="The new password is applied immediately after this update succeeds."
+      error={error}
+      loading={loading}
+      buttonLabel="Save Password"
+      onSubmit={onSubmit}
+    >
+      <View>
+        <Text style={styles.fieldLabel}>Current password</Text>
+        <TextInput
+          value={currentPassword}
+          onChangeText={onCurrentPasswordChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          secureTextEntry
+          style={styles.input}
+          placeholder="Current password"
+          placeholderTextColor={palette.subtle}
+        />
+      </View>
 
-          <View style={styles.authPanel}>
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+      <View>
+        <Text style={styles.fieldLabel}>New password</Text>
+        <TextInput
+          value={newPassword}
+          onChangeText={onNewPasswordChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="password-new"
+          secureTextEntry
+          style={styles.input}
+          placeholder="New password"
+          placeholderTextColor={palette.subtle}
+        />
+      </View>
 
-            <View style={styles.fieldStack}>
-              <View>
-                <Text style={styles.fieldLabel}>Current password</Text>
-                <TextInput
-                  value={currentPassword}
-                  onChangeText={onCurrentPasswordChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  style={styles.input}
-                  placeholder="Current password"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.fieldLabel}>New password</Text>
-                <TextInput
-                  value={newPassword}
-                  onChangeText={onNewPasswordChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  style={styles.input}
-                  placeholder="New password"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.fieldLabel}>Confirm new password</Text>
-                <TextInput
-                  value={confirmPassword}
-                  onChangeText={onConfirmPasswordChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  style={styles.input}
-                  placeholder="Confirm new password"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-            </View>
-
-            <Pressable onPress={onSubmit} disabled={loading} style={styles.primaryButton}>
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Save Password</Text>
-              )}
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View>
+        <Text style={styles.fieldLabel}>Confirm new password</Text>
+        <TextInput
+          value={confirmPassword}
+          onChangeText={onConfirmPasswordChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="password-new"
+          secureTextEntry
+          style={styles.input}
+          placeholder="Confirm new password"
+          placeholderTextColor={palette.subtle}
+        />
+      </View>
+    </AuthShell>
   );
 }
 
-function TopBar({
+function HeroBanner({
   user,
-  resultCount,
+  visibleCount,
+  todayCount,
+  currentSchedule,
+  nextSchedule,
   onLogout,
 }: {
   user: AuthUser;
-  resultCount: number;
+  visibleCount: number;
+  todayCount: number;
+  currentSchedule: Schedule | null;
+  nextSchedule: Schedule | null;
   onLogout: () => void;
 }) {
-  const isInstructor = user.role === "instructor" && Boolean(user.instructorName);
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const now = new Date();
+  const focus = currentSchedule
+    ? getHeroFocus(currentSchedule, "current", now)
+    : nextSchedule
+      ? getHeroFocus(nextSchedule, "next", now)
+      : getHeroFocus(null, "idle", now);
 
   return (
-    <View style={styles.topBar}>
-      <View style={styles.topBarRow}>
-        <View style={styles.topBarCopy}>
-          <Text style={styles.topBarEyebrow}>Schedule Manager</Text>
-          <Text style={styles.topBarTitle}>
-            {isInstructor ? "Your teaching week" : "Your schedule, organized"}
-          </Text>
-          <Text style={styles.topBarSubtitle}>
-            {isInstructor && user.instructorName
-              ? `${user.instructorName} · ${resultCount} classes in view`
-              : `${resultCount} classes in view`}
-          </Text>
+    <LinearGradient
+      colors={getRoleGradient(user.role)}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.heroCard, shadows.hero]}
+    >
+      <View style={styles.heroGlowLarge} />
+      <View style={styles.heroGlowSmall} />
+
+      <View
+        style={[
+          styles.heroHeader,
+          {
+            flexDirection: isTablet ? "row" : "column",
+            alignItems: isTablet ? "center" : "flex-start",
+          },
+        ]}
+      >
+        <View style={styles.heroCopy}>
+          <Text style={styles.heroEyebrow}>Schedule Manager</Text>
+          <Text style={styles.heroTitle}>{getGreeting(now)}</Text>
+          <Text style={styles.heroSubtitle}>{getFriendlyDate(now)}</Text>
         </View>
 
-        <Pressable onPress={onLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <Pressable onPress={onLogout} style={styles.heroLogoutButton}>
+          <Text style={styles.heroLogoutText}>Logout</Text>
         </Pressable>
       </View>
 
-      <View style={styles.metaRow}>
+      <View style={styles.identityRow}>
         <View style={styles.identityChip}>
-          <Text style={styles.identityChipText}>{user.username}</Text>
+          <Text style={styles.identityPrimary}>{user.username}</Text>
           <View style={styles.identityDot} />
-          <Text style={styles.identityChipRole}>{formatRole(user.role)}</Text>
+          <Text style={styles.identitySecondary}>{formatRole(user.role)}</Text>
+        </View>
+        {user.role === "instructor" && user.instructorName ? (
+          <View style={styles.identityChip}>
+            <Text style={styles.identityPrimary}>{user.instructorName}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View
+        style={[
+          styles.heroBody,
+          {
+            flexDirection: isTablet ? "row" : "column",
+          },
+        ]}
+      >
+        <View style={styles.heroSummaryColumn}>
+          <Text style={styles.heroLead}>
+            {user.role === "instructor"
+              ? "Your weekly teaching view stays focused on the next room, module, and update."
+              : "Track the live academic week with responsive filters and a clearer daily focus."}
+          </Text>
+
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatPill}>
+              <Text style={styles.heroStatLabel}>In view</Text>
+              <Text style={styles.heroStatValue}>{visibleCount}</Text>
+            </View>
+            <View style={styles.heroStatPill}>
+              <Text style={styles.heroStatLabel}>Today</Text>
+              <Text style={styles.heroStatValue}>{todayCount}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.focusCard,
+            {
+              borderColor: focus.theme.softBorder,
+              backgroundColor: "rgba(255,255,255,0.16)",
+            },
+          ]}
+        >
+          <View style={[styles.focusBadge, { backgroundColor: focus.theme.softBackground }]}>
+            <Text style={[styles.focusBadgeText, { color: focus.theme.softText }]}>{focus.badge}</Text>
+          </View>
+          <Text style={styles.focusTitle}>{focus.title}</Text>
+          <Text style={styles.focusDetail}>{focus.detail}</Text>
+          <Text style={styles.focusCaption}>{focus.caption}</Text>
         </View>
       </View>
+    </LinearGradient>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  detail,
+  width,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  width: number;
+}) {
+  return (
+    <View style={[styles.metricCard, shadows.card, { width }]}>
+      <Text style={styles.metricTitle}>{title}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricDetail}>{detail}</Text>
     </View>
   );
 }
 
-function AnnouncementStrip({ announcement }: { announcement: Announcement }) {
+function AnnouncementCard({ announcement }: { announcement: Announcement }) {
   const theme = getAnnouncementTheme(announcement.type);
 
   return (
     <View
       style={[
-        styles.announcementStrip,
+        styles.announcementCard,
+        shadows.card,
         {
-          backgroundColor: theme.background,
           borderColor: theme.border,
+          backgroundColor: theme.background,
         },
       ]}
     >
       <View style={[styles.announcementAccent, { backgroundColor: theme.accent }]} />
       <View style={styles.announcementContent}>
-        <Text style={styles.announcementLabel}>{announcement.title}</Text>
+        <Text style={styles.announcementTitle}>{announcement.title}</Text>
         <Text style={styles.announcementText}>{announcement.message}</Text>
       </View>
     </View>
+  );
+}
+
+function FilterChip({
+  label,
+  selected,
+  onPress,
+  tone = "default",
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  tone?: "default" | "dark";
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        tone === "dark" ? styles.filterChipDark : null,
+        selected ? (tone === "dark" ? styles.filterChipDarkActive : styles.filterChipActive) : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.filterChipText,
+          tone === "dark" ? styles.filterChipTextDark : null,
+          selected ? styles.filterChipTextActive : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -483,15 +735,17 @@ function ModuleRibbon({
   }
 
   return (
-    <View style={styles.moduleSection}>
-      <Text style={styles.sectionEyebrow}>Module Focus</Text>
+    <View style={styles.sectionBlock}>
+      <Text style={styles.sectionEyebrow}>Module focus</Text>
       <View style={styles.moduleWrap}>
         {modules.map((module) => (
-          <View key={module.code} style={styles.moduleChip}>
+          <View key={module.code} style={[styles.moduleChip, shadows.card]}>
             <Text style={styles.moduleCode}>{module.code}</Text>
-            <Text style={styles.moduleText}>{module.title}</Text>
+            <Text style={styles.moduleText} numberOfLines={2}>
+              {module.title}
+            </Text>
             <Text style={styles.moduleCount}>
-              {schedules.filter((schedule) => schedule.moduleCode === module.code).length}
+              {schedules.filter((schedule) => schedule.moduleCode === module.code).length} classes
             </Text>
           </View>
         ))}
@@ -500,73 +754,60 @@ function ModuleRibbon({
   );
 }
 
-function ScheduleRow({
-  schedule,
-  showDay,
-}: {
-  schedule: Schedule;
-  showDay?: boolean;
-}) {
+function ScheduleCard({ schedule }: { schedule: Schedule }) {
   const theme = getClassTheme(schedule.classType);
   const displaySection = getDisplaySection(schedule);
 
   return (
-    <View style={styles.scheduleRow}>
-      <View style={styles.scheduleRail}>
-        {showDay ? <Text style={styles.scheduleDayTag}>{schedule.day}</Text> : null}
+    <View style={[styles.scheduleCard, shadows.card]}>
+      <LinearGradient colors={theme.gradient} style={styles.scheduleRail}>
+        <Text style={styles.scheduleDay}>{schedule.day}</Text>
         <Text style={styles.scheduleStart}>{schedule.startTime}</Text>
         <Text style={styles.scheduleEnd}>{schedule.endTime}</Text>
-      </View>
+      </LinearGradient>
 
       <View
         style={[
-          styles.scheduleSurface,
+          styles.scheduleBody,
           {
             backgroundColor: theme.softBackground,
             borderColor: theme.softBorder,
           },
         ]}
       >
-        <View style={styles.scheduleSurfaceTop}>
+        <View style={styles.scheduleHeader}>
           <View style={styles.scheduleTitleWrap}>
             <Text style={styles.scheduleCode}>{schedule.moduleCode}</Text>
             <Text style={styles.scheduleTitle}>{schedule.moduleTitle}</Text>
           </View>
-          <View style={[styles.classBadge, { backgroundColor: theme.solidBackground }]}>
-            <Text style={[styles.classBadgeText, { color: theme.solidText }]}>
-              {schedule.classType}
-            </Text>
+          <View style={[styles.scheduleBadge, { backgroundColor: theme.solidBackground }]}>
+            <Text style={[styles.scheduleBadgeText, { color: theme.solidText }]}>{schedule.classType}</Text>
           </View>
         </View>
 
-        <Text style={[styles.scheduleMetaPrimary, { color: theme.softText }]}>
+        <Text style={[styles.scheduleLinePrimary, { color: theme.softText }]}>
           {schedule.room} · {schedule.instructor}
         </Text>
-        <Text style={styles.scheduleMetaSecondary}>
+        <Text style={styles.scheduleLineSecondary}>
           {schedule.program} · Year {schedule.year} · {displaySection}
         </Text>
-        <Text style={styles.scheduleMetaSecondary}>Group {schedule.group}</Text>
+        <Text style={styles.scheduleLineSecondary}>Group {schedule.group}</Text>
       </View>
     </View>
   );
 }
 
-function AgendaView({ schedules }: { schedules: Schedule[] }) {
-  return (
-    <View style={styles.listStack}>
-      {schedules.map((schedule) => (
-        <ScheduleRow key={schedule.id} schedule={schedule} showDay />
-      ))}
-    </View>
-  );
-}
-
 export default function App() {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const contentWidth = Math.min(width - 32, 980);
+  const summaryColumns = isTablet ? 4 : 2;
+  const summaryCardWidth = (contentWidth - 12 * (summaryColumns - 1)) / summaryColumns;
+
   const [bootstrapping, setBootstrapping] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authError, setAuthError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
@@ -582,7 +823,7 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  const [selectedDay, setSelectedDay] = useState("All");
+  const [selectedDay, setSelectedDay] = useState<string>("All");
   const [selectedClassType, setSelectedClassType] = useState<ClassTypeFilter>("All");
   const [search, setSearch] = useState("");
 
@@ -630,6 +871,7 @@ export default function App() {
     setAnnouncements([]);
     setSearch("");
     setSelectedDay("All");
+    setSelectedClassType("All");
     setPassword("");
     setCurrentPassword("");
     setNewPassword("");
@@ -645,13 +887,7 @@ export default function App() {
       setRefreshing(true);
     }
 
-    const filter: { day?: string; instructor?: string; classType?: string } = {};
-    if (selectedDay !== "All") {
-      filter.day = selectedDay;
-    }
-    if (selectedClassType !== "All") {
-      filter.classType = selectedClassType;
-    }
+    const filter: { instructor?: string } = {};
     if (instructorScope) {
       filter.instructor = instructorScope;
     }
@@ -685,10 +921,13 @@ export default function App() {
     }
 
     void loadDashboardData();
-  }, [token, user, selectedDay, selectedClassType, instructorScope]);
+  }, [token, user, instructorScope]);
 
-  const visibleSchedules = filterSchedules(schedules, search);
+  const visibleSchedules = filterSchedules(schedules, search, selectedDay, selectedClassType);
   const isInstructor = user?.role === "instructor" && Boolean(user.instructorName);
+  const todayDay = getTodayScheduleDay(new Date());
+  const todaySchedules = todayDay ? schedules.filter((schedule) => schedule.day === todayDay) : [];
+  const momentum = getScheduleMomentum(schedules, new Date());
   const moduleSummaries = Array.from(
     new Map(
       visibleSchedules.map((schedule) => [
@@ -697,13 +936,18 @@ export default function App() {
       ]),
     ).values(),
   );
+  const uniqueModules = new Set(visibleSchedules.map((schedule) => schedule.moduleCode)).size;
+  const activeFilterCount =
+    (selectedDay !== "All" ? 1 : 0) +
+    (selectedClassType !== "All" ? 1 : 0) +
+    (search.trim() ? 1 : 0);
 
   if (!apiBaseUrl) {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={styles.centeredScreen} edges={["top", "bottom", "left", "right"]}>
           <StatusBar style="dark" />
-          <View style={styles.setupCard}>
+          <View style={[styles.setupCard, shadows.card]}>
             <Text style={styles.setupTitle}>Missing API configuration</Text>
             <Text style={styles.setupBody}>
               Add `EXPO_PUBLIC_API_BASE_URL` to `mobile/.env` and point it to your deployed Next.js app.
@@ -722,7 +966,7 @@ export default function App() {
       <SafeAreaProvider>
         <SafeAreaView style={styles.centeredScreen} edges={["top", "bottom", "left", "right"]}>
           <StatusBar style="dark" />
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={palette.accent} />
           <Text style={styles.loadingLabel}>Checking saved session...</Text>
         </SafeAreaView>
       </SafeAreaProvider>
@@ -733,15 +977,10 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <AuthScreen
-          mode={authMode}
           loading={authLoading}
           error={authError}
           username={username}
           password={password}
-          onModeChange={(nextMode) => {
-            setAuthMode(nextMode);
-            setAuthError(null);
-          }}
           onUsernameChange={setUsername}
           onPasswordChange={setPassword}
           onSubmit={async () => {
@@ -753,10 +992,7 @@ export default function App() {
             setAuthLoading(true);
             setAuthError(null);
             try {
-              const response =
-                authMode === "login"
-                  ? await login(username.trim(), password)
-                  : await register(username.trim(), password);
+              const response = await login(username.trim(), password);
               await persistSession(response);
               setPassword("");
             } catch (error) {
@@ -817,110 +1053,130 @@ export default function App() {
         <StatusBar style="dark" />
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingHorizontal: 16 }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => void loadDashboardData(true)} />
           }
         >
-          <TopBar
-            user={user}
-            resultCount={visibleSchedules.length}
-            onLogout={() => void clearSession()}
-          />
-
-          {announcements.length > 0 ? (
-            <View style={styles.announcementStack}>
-              {announcements.map((announcement) => (
-                <AnnouncementStrip key={announcement.id} announcement={announcement} />
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.controlBlock}>
-            <Text style={styles.sectionEyebrow}>Filters</Text>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              style={styles.searchInput}
-              placeholder="Search by module, room, instructor, or section"
-              placeholderTextColor="#94a3b8"
+          <View style={[styles.contentWrap, { width: contentWidth }]}>
+            <HeroBanner
+              user={user}
+              visibleCount={visibleSchedules.length}
+              todayCount={todaySchedules.length}
+              currentSchedule={momentum.current}
+              nextSchedule={momentum.next}
+              onLogout={() => void clearSession()}
             />
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dayChipRow}
-            >
-              {DAYS.map((day) => (
-                <Pressable
-                  key={day}
-                  onPress={() => setSelectedDay(day)}
-                  style={[styles.dayChip, selectedDay === day ? styles.dayChipActive : null]}
-                >
-                  <Text style={[styles.dayChipText, selectedDay === day ? styles.dayChipTextActive : null]}>
-                    {day}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.summaryGrid}>
+              <MetricCard
+                title="Classes in view"
+                value={String(visibleSchedules.length)}
+                detail={activeFilterCount > 0 ? `${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}` : "Showing the full week"}
+                width={summaryCardWidth}
+              />
+              <MetricCard
+                title="Today"
+                value={String(todaySchedules.length)}
+                detail={todayDay ? `${todayDay}'s schedule` : "Weekend"}
+                width={summaryCardWidth}
+              />
+              <MetricCard
+                title="Modules"
+                value={String(uniqueModules)}
+                detail="Unique modules in the current result set"
+                width={summaryCardWidth}
+              />
+              <MetricCard
+                title="Updates"
+                value={String(announcements.length)}
+                detail={announcements.length === 1 ? "Active announcement" : "Active announcements"}
+                width={summaryCardWidth}
+              />
+            </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.classTypeChipRow}
-            >
-              {CLASS_TYPE_FILTERS.map((classType) => (
-                <Pressable
-                  key={classType}
-                  onPress={() => setSelectedClassType(classType)}
-                  style={[
-                    styles.classTypeChip,
-                    selectedClassType === classType ? styles.classTypeChipActive : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.classTypeChipText,
-                      selectedClassType === classType ? styles.classTypeChipTextActive : null,
-                    ]}
-                  >
-                    {classType === "All" ? "All" : classType}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            {announcements.length > 0 ? (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>Announcements</Text>
+                <View style={styles.announcementStack}>
+                  {announcements.map((announcement) => (
+                    <AnnouncementCard key={announcement.id} announcement={announcement} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={[styles.controlCard, shadows.card]}>
+              <Text style={styles.sectionEyebrow}>Filters</Text>
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                style={styles.searchInput}
+                placeholder="Search module, room, instructor, or section"
+                placeholderTextColor={palette.subtle}
+              />
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {DAYS.map((day) => (
+                  <FilterChip
+                    key={day}
+                    label={day}
+                    selected={selectedDay === day}
+                    onPress={() => setSelectedDay(day)}
+                  />
+                ))}
+              </ScrollView>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {CLASS_TYPE_FILTERS.map((classType) => (
+                  <FilterChip
+                    key={classType}
+                    label={classType === "All" ? "All classes" : classType}
+                    selected={selectedClassType === classType}
+                    onPress={() => setSelectedClassType(classType)}
+                    tone="dark"
+                  />
+                ))}
+              </ScrollView>
+            </View>
+
+            {isInstructor ? <ModuleRibbon modules={moduleSummaries} schedules={visibleSchedules} /> : null}
+
+            <View style={styles.resultsHeader}>
+              <View style={styles.resultsCopy}>
+                <Text style={styles.resultsTitle}>{getClassTypeLabel(selectedClassType)}</Text>
+                <Text style={styles.resultsSubtitle}>
+                  {visibleSchedules.length} classes
+                  {selectedDay !== "All" ? ` · ${selectedDay}` : ""}
+                </Text>
+              </View>
+
+              <Pressable onPress={() => void loadDashboardData(true)} style={styles.refreshButton}>
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </Pressable>
+            </View>
+
+            {scheduleError ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{scheduleError}</Text>
+              </View>
+            ) : null}
+
+            {visibleSchedules.length === 0 ? (
+              <View style={[styles.emptyState, shadows.card]}>
+                <Text style={styles.emptyTitle}>No schedules found</Text>
+                <Text style={styles.emptyBody}>
+                  Try a different day, remove one of the filters, or clear the search query.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.scheduleStack}>
+                {visibleSchedules.map((schedule) => (
+                  <ScheduleCard key={schedule.id} schedule={schedule} />
+                ))}
+              </View>
+            )}
           </View>
-
-          {isInstructor ? <ModuleRibbon modules={moduleSummaries} schedules={visibleSchedules} /> : null}
-
-          <View style={styles.resultHeader}>
-            <View style={styles.resultHeaderCopy}>
-              <Text style={styles.resultHeaderTitle}>{getClassTypeLabel(selectedClassType)}</Text>
-              <Text style={styles.resultHeaderSubtitle}>
-                {visibleSchedules.length} classes
-                {selectedDay !== "All" ? ` · ${selectedDay}` : ""}
-              </Text>
-            </View>
-
-            <Pressable onPress={() => void loadDashboardData(true)} style={styles.refreshButton}>
-              <Text style={styles.refreshButtonText}>Refresh</Text>
-            </Pressable>
-          </View>
-
-          {scheduleError ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{scheduleError}</Text>
-            </View>
-          ) : null}
-
-          {visibleSchedules.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No schedules found</Text>
-              <Text style={styles.emptyBody}>Try a different day or adjust the search.</Text>
-            </View>
-          ) : (
-            <AgendaView schedules={visibleSchedules} />
-          )}
         </ScrollView>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -930,157 +1186,234 @@ export default function App() {
 const styles = StyleSheet.create({
   authSafeArea: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#081a40",
+  },
+  authRoot: {
+    flex: 1,
+    backgroundColor: "#081a40",
+  },
+  authBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#081a40",
+  },
+  authGlowTop: {
+    position: "absolute",
+    width: 320,
+    height: 320,
+    borderRadius: 999,
+    backgroundColor: "rgba(84, 158, 255, 0.22)",
+    top: -120,
+    right: -60,
+  },
+  authGlowBottom: {
+    position: "absolute",
+    width: 280,
+    height: 280,
+    borderRadius: 999,
+    backgroundColor: "rgba(78, 235, 197, 0.14)",
+    bottom: -100,
+    left: -40,
+  },
+  authScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
+  authFrame: {
+    alignSelf: "center",
+    gap: 18,
+  },
+  authHeroCard: {
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    padding: 28,
+    justifyContent: "space-between",
+    gap: 22,
+  },
+  authHeroOrbLarge: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    top: -80,
+    right: -50,
+  },
+  authHeroOrbSmall: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    bottom: 20,
+    left: -20,
+  },
+  authHeroEyebrow: {
+    color: "#dce8ff",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+  },
+  authHeroTitle: {
+    color: "#ffffff",
+    fontSize: 34,
+    fontWeight: "800",
+    lineHeight: 40,
+    maxWidth: 420,
+  },
+  authHeroSubtitle: {
+    color: "rgba(255,255,255,0.86)",
+    fontSize: 16,
+    lineHeight: 24,
+    maxWidth: 460,
+  },
+  authStatGrid: {
+    gap: 12,
+  },
+  authStatCard: {
+    borderRadius: radii.md,
+    padding: 16,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    gap: 4,
+  },
+  authStatLabel: {
+    color: "rgba(255,255,255,0.76)",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  authStatValue: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  authStatMeta: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  authPanel: {
+    borderRadius: radii.xl,
+    backgroundColor: palette.panel,
+    padding: 24,
+    gap: 18,
+    justifyContent: "center",
+  },
+  authPanelHeader: {
+    gap: 6,
+  },
+  authPanelTitle: {
+    color: palette.ink,
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  authPanelSubtitle: {
+    color: palette.muted,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  authFootnote: {
+    borderRadius: radii.md,
+    padding: 14,
+    backgroundColor: "#eef4fb",
+  },
+  authFootnoteText: {
+    color: palette.body,
+    fontSize: 13,
+    lineHeight: 20,
   },
   appRoot: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: palette.page,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 14,
     paddingBottom: 32,
-    gap: 20,
+  },
+  contentWrap: {
+    alignSelf: "center",
+    gap: 18,
   },
   centeredScreen: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: palette.page,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
     gap: 14,
   },
   loadingLabel: {
-    color: "#64748b",
+    color: palette.muted,
     fontSize: 15,
   },
   setupCard: {
     width: "100%",
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
+    backgroundColor: palette.panel,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.line,
     padding: 20,
     gap: 10,
   },
   setupTitle: {
-    color: "#0f172a",
+    color: palette.ink,
     fontSize: 22,
     fontWeight: "700",
   },
   setupBody: {
-    color: "#475569",
+    color: palette.body,
     lineHeight: 20,
   },
   setupCode: {
-    backgroundColor: "#eff6ff",
-    color: "#1d4ed8",
+    backgroundColor: "#e7efff",
+    color: palette.accent,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: radii.sm,
     overflow: "hidden",
-  },
-  authRoot: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  authScroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    gap: 20,
-  },
-  authHero: {
-    gap: 10,
-  },
-  authEyebrow: {
-    color: "#2563eb",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  authTitle: {
-    color: "#0f172a",
-    fontSize: 30,
-    fontWeight: "800",
-    lineHeight: 36,
-  },
-  authSubtitle: {
-    color: "#64748b",
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  authPanel: {
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 20,
-    gap: 16,
-  },
-  authModeSwitch: {
-    flexDirection: "row",
-    backgroundColor: "#f1f5f9",
-    borderRadius: 14,
-    padding: 4,
-  },
-  authModeButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  authModeButtonActive: {
-    backgroundColor: "#ffffff",
-  },
-  authModeButtonText: {
-    color: "#64748b",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  authModeButtonTextActive: {
-    color: "#0f172a",
   },
   fieldStack: {
     gap: 14,
   },
   fieldLabel: {
-    color: "#334155",
+    color: palette.body,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 6,
   },
   input: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#f9fbfe",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 14,
+    borderColor: "#d6e1ee",
+    borderRadius: radii.md,
     paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingVertical: 14,
     fontSize: 16,
-    color: "#0f172a",
+    color: palette.ink,
   },
   primaryButton: {
-    backgroundColor: "#0f172a",
-    minHeight: 50,
-    borderRadius: 14,
+    backgroundColor: palette.ink,
+    minHeight: 52,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryButtonText: {
     color: "#ffffff",
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   errorBanner: {
     backgroundColor: "#fff1f2",
     borderWidth: 1,
     borderColor: "#fecdd3",
-    borderRadius: 14,
+    borderRadius: radii.md,
     padding: 12,
   },
   errorText: {
@@ -1088,95 +1421,227 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  topBar: {
-    gap: 16,
+  heroCard: {
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    padding: 22,
+    gap: 18,
   },
-  topBarRow: {
-    flexDirection: "row",
+  heroGlowLarge: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    top: -80,
+    right: -30,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  heroGlowSmall: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 999,
+    bottom: 20,
+    left: -20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  heroHeader: {
     justifyContent: "space-between",
-    alignItems: "flex-start",
     gap: 12,
   },
-  topBarCopy: {
-    flex: 1,
+  heroCopy: {
     gap: 6,
   },
-  topBarEyebrow: {
-    color: "#2563eb",
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.78)",
     fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  topBarTitle: {
-    color: "#0f172a",
-    fontSize: 28,
     fontWeight: "800",
-    lineHeight: 32,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
   },
-  topBarSubtitle: {
-    color: "#64748b",
+  heroTitle: {
+    color: "#ffffff",
+    fontSize: 34,
+    fontWeight: "800",
+    lineHeight: 40,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.84)",
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
   },
-  logoutButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
+  heroLogoutButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,255,255,0.18)",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  logoutButtonText: {
-    color: "#dc2626",
-    fontWeight: "700",
+  heroLogoutText: {
+    color: "#ffffff",
     fontSize: 13,
+    fontWeight: "800",
   },
-  metaRow: {
+  identityRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    flexWrap: "wrap",
+    gap: 10,
   },
   identityChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
+    paddingVertical: 10,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,255,255,0.16)",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignSelf: "flex-start",
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  identityChipText: {
-    color: "#0f172a",
-    fontWeight: "600",
+  identityPrimary: {
+    color: "#ffffff",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  identitySecondary: {
+    color: "rgba(255,255,255,0.76)",
+    fontSize: 13,
+    fontWeight: "700",
   },
   identityDot: {
     width: 4,
     height: 4,
     borderRadius: 999,
-    backgroundColor: "#94a3b8",
+    backgroundColor: "rgba(255,255,255,0.56)",
   },
-  identityChipRole: {
-    color: "#64748b",
+  heroBody: {
+    gap: 14,
+  },
+  heroSummaryColumn: {
+    flex: 1,
+    gap: 14,
+  },
+  heroLead: {
+    color: "#ffffff",
+    fontSize: 16,
+    lineHeight: 24,
+    maxWidth: 460,
+  },
+  heroStatsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  heroStatPill: {
+    minWidth: 120,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    gap: 2,
+  },
+  heroStatLabel: {
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  heroStatValue: {
+    color: "#ffffff",
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  focusCard: {
+    flex: 1,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: 16,
+    gap: 8,
+  },
+  focusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+  },
+  focusBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  focusTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800",
+    lineHeight: 26,
+  },
+  focusDetail: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21,
+  },
+  focusCaption: {
+    color: "rgba(255,255,255,0.76)",
     fontSize: 13,
-    fontWeight: "600",
+    lineHeight: 18,
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  metricCard: {
+    borderRadius: radii.lg,
+    backgroundColor: palette.panel,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 16,
+    gap: 6,
+  },
+  metricTitle: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  metricValue: {
+    color: palette.ink,
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  metricDetail: {
+    color: palette.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sectionBlock: {
+    gap: 12,
+  },
+  sectionEyebrow: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
   },
   announcementStack: {
     gap: 10,
   },
-  announcementStrip: {
+  announcementCard: {
     flexDirection: "row",
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: radii.lg,
     overflow: "hidden",
   },
   announcementAccent: {
-    width: 6,
+    width: 8,
   },
   announcementContent: {
     flex: 1,
@@ -1184,83 +1649,67 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 4,
   },
-  announcementLabel: {
-    color: "#0f172a",
-    fontSize: 14,
-    fontWeight: "700",
+  announcementTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: "800",
   },
   announcementText: {
-    color: "#475569",
+    color: palette.body,
     fontSize: 14,
     lineHeight: 20,
   },
-  controlBlock: {
+  controlCard: {
+    borderRadius: radii.lg,
+    backgroundColor: palette.panel,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 16,
     gap: 12,
   },
-  sectionEyebrow: {
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
   searchInput: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#f9fbfe",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 16,
+    borderColor: "#d6e1ee",
+    borderRadius: radii.md,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#0f172a",
+    color: palette.ink,
   },
-  dayChipRow: {
+  chipRow: {
     gap: 8,
     paddingRight: 8,
   },
-  classTypeChipRow: {
-    gap: 8,
-    paddingRight: 8,
-  },
-  dayChip: {
-    backgroundColor: "#ffffff",
+  filterChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#edf2f8",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderColor: "#dae3ee",
   },
-  dayChipActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
+  filterChipDark: {
+    backgroundColor: "#f3f7fb",
   },
-  dayChipText: {
-    color: "#475569",
+  filterChipActive: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  filterChipDarkActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  filterChipText: {
+    color: palette.body,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  dayChipTextActive: {
+  filterChipTextDark: {
+    color: palette.ink,
+  },
+  filterChipTextActive: {
     color: "#ffffff",
-  },
-  classTypeChip: {
-    backgroundColor: "#e2e8f0",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  classTypeChipActive: {
-    backgroundColor: "#0f172a",
-  },
-  classTypeChipText: {
-    color: "#475569",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  classTypeChipTextActive: {
-    color: "#ffffff",
-  },
-  moduleSection: {
-    gap: 12,
   },
   moduleWrap: {
     flexDirection: "row",
@@ -1268,116 +1717,117 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   moduleChip: {
-    backgroundColor: "#ffffff",
+    minWidth: 150,
+    maxWidth: 240,
+    borderRadius: radii.md,
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "#dbeafe",
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 3,
+    borderColor: "#d4e4ff",
+    padding: 14,
+    gap: 4,
   },
   moduleCode: {
-    color: "#2563eb",
+    color: palette.accent,
     fontSize: 12,
     fontWeight: "800",
+    letterSpacing: 0.6,
   },
   moduleText: {
-    color: "#334155",
-    fontSize: 13,
-    lineHeight: 18,
-    maxWidth: 220,
+    color: palette.body,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   moduleCount: {
-    color: "#94a3b8",
+    color: palette.muted,
     fontSize: 12,
     fontWeight: "700",
   },
-  resultHeader: {
+  resultsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
     gap: 12,
   },
-  resultHeaderCopy: {
+  resultsCopy: {
     flex: 1,
     gap: 4,
   },
-  resultHeaderTitle: {
-    color: "#0f172a",
-    fontSize: 20,
+  resultsTitle: {
+    color: palette.ink,
+    fontSize: 24,
     fontWeight: "800",
   },
-  resultHeaderSubtitle: {
-    color: "#64748b",
+  resultsSubtitle: {
+    color: palette.muted,
     fontSize: 14,
   },
   refreshButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.line,
   },
   refreshButtonText: {
-    color: "#0f172a",
+    color: palette.ink,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   emptyState: {
-    backgroundColor: "#ffffff",
+    borderRadius: radii.lg,
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 18,
+    borderColor: palette.line,
     padding: 18,
-    gap: 4,
+    gap: 6,
   },
   emptyTitle: {
-    color: "#0f172a",
-    fontSize: 16,
-    fontWeight: "700",
+    color: palette.ink,
+    fontSize: 17,
+    fontWeight: "800",
   },
   emptyBody: {
-    color: "#64748b",
+    color: palette.muted,
     lineHeight: 20,
   },
-  listStack: {
+  scheduleStack: {
     gap: 14,
   },
-  scheduleRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 12,
+  scheduleCard: {
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    backgroundColor: palette.panel,
   },
   scheduleRail: {
-    width: 84,
-    paddingTop: 4,
-    gap: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 2,
   },
-  scheduleDayTag: {
-    color: "#2563eb",
+  scheduleDay: {
+    color: "rgba(255,255,255,0.74)",
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
+    letterSpacing: 0.9,
   },
   scheduleStart: {
-    color: "#0f172a",
-    fontSize: 15,
+    color: "#ffffff",
+    fontSize: 24,
     fontWeight: "800",
   },
   scheduleEnd: {
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: "600",
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  scheduleSurface: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
+  scheduleBody: {
+    borderTopWidth: 1,
+    padding: 16,
     gap: 8,
   },
-  scheduleSurfaceTop: {
+  scheduleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -1388,34 +1838,34 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   scheduleCode: {
-    color: "#0f172a",
-    fontSize: 13,
+    color: palette.ink,
+    fontSize: 12,
     fontWeight: "800",
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
   },
   scheduleTitle: {
-    color: "#334155",
-    fontSize: 15,
+    color: palette.body,
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  scheduleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+  },
+  scheduleBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  scheduleLinePrimary: {
+    fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
   },
-  classBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  classBadgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  scheduleMetaPrimary: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  scheduleMetaSecondary: {
-    color: "#475569",
-    fontSize: 13,
-    lineHeight: 18,
+  scheduleLineSecondary: {
+    color: palette.body,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
