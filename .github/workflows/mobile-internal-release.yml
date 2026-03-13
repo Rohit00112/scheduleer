@@ -19,6 +19,8 @@ concurrency:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:
         working-directory: mobile
@@ -33,6 +35,14 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: mobile/package-lock.json
+
+      - name: Verify Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing EXPO_TOKEN GitHub Actions secret."
+            echo "Create one from https://expo.dev/settings/access-tokens and add it in the repository Actions secrets."
+            exit 1
+          fi
 
       - name: Set up Expo and EAS
         uses: expo/expo-github-action@v8
