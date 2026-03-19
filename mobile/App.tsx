@@ -1,9 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import * as LocalAuthentication from "expo-local-authentication";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,15 +27,36 @@ import {
   getSchedules,
   login,
 } from "./src/api";
+import {
+  clearBiometricCredentials,
+  clearRememberedLogin,
+  clearSessionToken,
+  getBiometricCredentials,
+  getRememberedUsername as getStoredRememberedUsername,
+  getSessionToken,
+  isBiometricRememberEnabled,
+  saveBiometricCredentials,
+  setBiometricRememberEnabled,
+  setRememberedUsername as persistRememberedUsername,
+  setSessionToken,
+} from "./src/auth-storage";
 import { getAnnouncementTheme, getClassTheme, getRoleGradient, palette, radii, shadows } from "./src/theme";
 import type { Announcement, AuthResponse, AuthUser, Schedule } from "./src/types";
 
-const TOKEN_STORAGE_KEY = "scheduler.mobile.token";
 const DAYS = ["All", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 const CLASS_TYPE_FILTERS = ["All", "Lecture", "Tutorial", "Workshop"] as const;
 const DAY_ORDER = DAYS.slice(1);
 
 type ClassTypeFilter = (typeof CLASS_TYPE_FILTERS)[number];
+type BiometricSupport = {
+  available: boolean;
+  label: string;
+};
+type AuthFieldHelpers = {
+  registerField: (fieldName: string) => { onLayout: (event: { nativeEvent: { layout: { y: number } } }) => void };
+  focusField: (fieldName: string) => void;
+  blurField: (fieldName: string) => void;
+};
 
 function parseTimeToMinutes(value: string): number | null {
   const normalized = value.trim();
@@ -262,10 +285,78 @@ function getClassTypeLabel(value: ClassTypeFilter) {
   return `${value}s`;
 }
 
+function getBiometricButtonLabel(types: LocalAuthentication.AuthenticationType[]): string {
+  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+    return Platform.OS === "ios" ? "Sign in with Face ID" : "Sign in with Face unlock";
+  }
+
+  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+    return Platform.OS === "ios" ? "Sign in with Touch ID" : "Sign in with Fingerprint";
+  }
+
+  if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
+    return "Sign in with Iris";
+  }
+
+  return "Sign in with biometrics";
+}
+
+async function getBiometricSupport(): Promise<BiometricSupport> {
+  try {
+    const [hasHardware, isEnrolled, supportedTypes] = await Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.isEnrolledAsync(),
+      LocalAuthentication.supportedAuthenticationTypesAsync(),
+    ]);
+
+    if (!hasHardware || !isEnrolled || !SecureStore.canUseBiometricAuthentication()) {
+      return {
+        available: false,
+        label: "Sign in with biometrics",
+      };
+    }
+
+    return {
+      available: true,
+      label: getBiometricButtonLabel(supportedTypes),
+    };
+  } catch {
+    return {
+      available: false,
+      label: "Sign in with biometrics",
+    };
+  }
+}
+
+function getBiometricPrompt(label: string) {
+  const method = label.replace(/^Sign in with /, "");
+  return `Use ${method} to unlock your saved sign-in details.`;
+}
+
+function isBiometricPromptCancelled(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("cancel") ||
+    message.includes("dismiss") ||
+    message.includes("abort") ||
+    message.includes("not authenticated")
+  );
+}
+
+function isInvalidCredentialsMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("invalid credentials") || normalized.includes("unauthorized");
+}
+
 function AuthShell({
   eyebrow,
   title,
   subtitle,
+  highlights,
   panelTitle,
   panelSubtitle,
   footerNote,
@@ -273,11 +364,13 @@ function AuthShell({
   loading,
   buttonLabel,
   onSubmit,
+  footerAction,
   children,
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
+  highlights: Array<{ label: string; value: string }>;
   panelTitle: string;
   panelSubtitle: string;
   footerNote: string;
@@ -285,18 +378,110 @@ function AuthShell({
   loading: boolean;
   buttonLabel: string;
   onSubmit: () => void;
-  children: ReactNode;
+  footerAction?: ReactNode;
+  children: (helpers: AuthFieldHelpers) => ReactNode;
 }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 860;
-  const contentWidth = Math.min(width - 24, 1040);
+  const contentWidth = isWide ? Math.min(width - 24, 840) : Math.min(width - 24, 520);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const activeFieldRef = useRef<string | null>(null);
+  const fieldOffsetsRef = useRef<Record<string, number>>({});
+
+  function scrollToField(fieldName: string, animated = true) {
+    const offsetY = fieldOffsetsRef.current[fieldName];
+    if (typeof offsetY !== "number") {
+      return;
+    }
+
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, offsetY - (isWide ? 36 : 112)),
+      animated,
+    });
+  }
+
+  useEffect(() => {
+    const eventName = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const subscription = Keyboard.addListener(eventName, () => {
+      if (!activeFieldRef.current) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        if (activeFieldRef.current) {
+          scrollToField(activeFieldRef.current);
+        }
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isWide]);
+
+  const fieldHelpers: AuthFieldHelpers = {
+    registerField: (fieldName) => ({
+      onLayout: (event) => {
+        fieldOffsetsRef.current[fieldName] = event.nativeEvent.layout.y;
+      },
+    }),
+    focusField: (fieldName) => {
+      activeFieldRef.current = fieldName;
+      requestAnimationFrame(() => {
+        scrollToField(fieldName);
+      });
+    },
+    blurField: (fieldName) => {
+      if (activeFieldRef.current === fieldName) {
+        activeFieldRef.current = null;
+      }
+    },
+  };
+
+  const wideHero = (
+    <LinearGradient
+      colors={["#ffffff", "#eef4ff", "#dfeaff"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[
+        styles.authHeroCard,
+        shadows.card,
+        {
+          minHeight: 320,
+          width: contentWidth * 0.44,
+        },
+      ]}
+    >
+      <View style={styles.authHeroOrbLarge} />
+      <View style={styles.authHeroOrbSmall} />
+
+      <View style={styles.authHeroTopRow}>
+        <Text style={styles.authHeroEyebrow}>{eyebrow}</Text>
+        <View style={styles.authHeroPill}>
+          <Text style={styles.authHeroPillText}>Mobile</Text>
+        </View>
+      </View>
+      <Text style={styles.authHeroTitle}>{title}</Text>
+      <Text style={styles.authHeroSubtitle}>{subtitle}</Text>
+
+      <View style={styles.authHighlightRow}>
+        {highlights.map((item) => (
+          <View key={item.label} style={styles.authHighlightCard}>
+            <Text style={styles.authHighlightLabel}>{item.label}</Text>
+            <Text style={styles.authHighlightValue}>{item.value}</Text>
+          </View>
+        ))}
+      </View>
+    </LinearGradient>
+  );
 
   return (
     <SafeAreaView style={styles.authSafeArea} edges={["top", "bottom", "left", "right"]}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={styles.authRoot}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
       >
         <View style={styles.authBackdrop}>
           <View style={styles.authGlowTop} />
@@ -304,8 +489,18 @@ function AuthShell({
         </View>
 
         <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.authScroll, { paddingHorizontal: 12 }]}
+          contentContainerStyle={[
+            styles.authScroll,
+            {
+              paddingHorizontal: 12,
+              minHeight: isWide ? Math.max(height - 12, 0) : undefined,
+              justifyContent: isWide ? "center" : "flex-start",
+            },
+          ]}
         >
           <View
             style={[
@@ -316,46 +511,25 @@ function AuthShell({
               },
             ]}
           >
-            <LinearGradient
-              colors={["#081f54", "#2458d3", "#6bb2ff"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                styles.authHeroCard,
-                shadows.hero,
-                {
-                  minHeight: isWide ? 560 : 360,
-                  width: isWide ? contentWidth * 0.54 : "100%",
-                },
-              ]}
-            >
-              <View style={styles.authHeroOrbLarge} />
-              <View style={styles.authHeroOrbSmall} />
+            {isWide ? wideHero : null}
 
-              <Text style={styles.authHeroEyebrow}>{eyebrow}</Text>
-              <Text style={styles.authHeroTitle}>{title}</Text>
-              <Text style={styles.authHeroSubtitle}>{subtitle}</Text>
+            <View style={[styles.authPanel, shadows.card, { width: isWide ? contentWidth * 0.56 - 18 : "100%" }]}>
+              {!isWide ? (
+                <View style={styles.authCompactIntro}>
+                  <Text style={styles.authCompactEyebrow}>{eyebrow}</Text>
+                  <Text style={styles.authCompactTitle}>{title}</Text>
+                  <Text style={styles.authCompactSubtitle}>{subtitle}</Text>
+                  <View style={styles.authCompactHighlightRow}>
+                    {highlights.map((item) => (
+                      <View key={item.label} style={styles.authCompactHighlightChip}>
+                        <Text style={styles.authCompactHighlightLabel}>{item.label}</Text>
+                        <Text style={styles.authCompactHighlightValue}>{item.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
 
-              <View style={styles.authStatGrid}>
-                <View style={styles.authStatCard}>
-                  <Text style={styles.authStatLabel}>Live visibility</Text>
-                  <Text style={styles.authStatValue}>Weekly view</Text>
-                  <Text style={styles.authStatMeta}>Track today, next class, and filters in one place.</Text>
-                </View>
-                <View style={styles.authStatCard}>
-                  <Text style={styles.authStatLabel}>Admin managed</Text>
-                  <Text style={styles.authStatValue}>No signup</Text>
-                  <Text style={styles.authStatMeta}>Accounts are provisioned internally for staff and admins.</Text>
-                </View>
-                <View style={styles.authStatCard}>
-                  <Text style={styles.authStatLabel}>Mobile ready</Text>
-                  <Text style={styles.authStatValue}>Responsive</Text>
-                  <Text style={styles.authStatMeta}>Optimized for compact phones and tablet portrait layouts.</Text>
-                </View>
-              </View>
-            </LinearGradient>
-
-            <View style={[styles.authPanel, shadows.card, { width: isWide ? contentWidth * 0.46 - 18 : "100%" }]}>
               <View style={styles.authPanelHeader}>
                 <Text style={styles.authPanelTitle}>{panelTitle}</Text>
                 <Text style={styles.authPanelSubtitle}>{panelSubtitle}</Text>
@@ -367,15 +541,17 @@ function AuthShell({
                 </View>
               ) : null}
 
-              <View style={styles.fieldStack}>{children}</View>
+              <View style={styles.fieldStack}>{children(fieldHelpers)}</View>
 
-              <Pressable onPress={onSubmit} disabled={loading} style={styles.primaryButton}>
+              <Pressable onPress={onSubmit} disabled={loading} style={[styles.primaryButton, loading && styles.buttonDisabled]}>
                 {loading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
                 )}
               </Pressable>
+
+              {footerAction}
 
               <View style={styles.authFootnote}>
                 <Text style={styles.authFootnoteText}>{footerNote}</Text>
@@ -393,59 +569,140 @@ function AuthScreen({
   error,
   username,
   password,
+  rememberDevice,
+  biometricAvailable,
+  biometricReady,
+  biometricLoading,
+  rememberedUsername,
+  biometricLabel,
   onUsernameChange,
   onPasswordChange,
+  onRememberDeviceChange,
+  onBiometricSubmit,
   onSubmit,
 }: {
   loading: boolean;
   error: string | null;
   username: string;
   password: string;
+  rememberDevice: boolean;
+  biometricAvailable: boolean;
+  biometricReady: boolean;
+  biometricLoading: boolean;
+  rememberedUsername: string;
+  biometricLabel: string;
   onUsernameChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
+  onRememberDeviceChange: (value: boolean) => void | Promise<void>;
+  onBiometricSubmit: () => void | Promise<void>;
   onSubmit: () => void;
 }) {
+  const passwordRef = useRef<TextInput | null>(null);
+  const biometricMethod = biometricLabel.replace(/^Sign in with /, "");
+
   return (
     <AuthShell
       eyebrow="Schedule Manager"
-      title="Keep the academic week in motion."
-      subtitle="Monitor teaching activity, announcements, and the next room switch without digging through spreadsheets."
+      title="Clean schedule access."
+      subtitle="A simpler login built for small screens so the form stays usable while the keyboard is open."
+      highlights={[
+        { label: "Focus", value: "Weekly view" },
+        { label: "Access", value: "Admin managed" },
+      ]}
       panelTitle="Sign in"
-      panelSubtitle="Use your administrator-issued credentials to access the mobile schedule dashboard."
+      panelSubtitle="Use your assigned credentials to open the schedule dashboard."
       footerNote="Need an account or a reset? Contact an administrator from the web dashboard."
       error={error}
       loading={loading}
       buttonLabel="Sign In"
       onSubmit={onSubmit}
-    >
-      <View>
-        <Text style={styles.fieldLabel}>Username</Text>
-        <TextInput
-          value={username}
-          onChangeText={onUsernameChange}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="username"
-          style={styles.input}
-          placeholder="Enter your username"
-          placeholderTextColor={palette.subtle}
-        />
-      </View>
+      footerAction={
+        biometricReady ? (
+          <View style={styles.authSecondaryAction}>
+            {rememberedUsername ? (
+              <Text style={styles.savedSigninLabel}>Saved for {rememberedUsername}</Text>
+            ) : null}
 
-      <View>
-        <Text style={styles.fieldLabel}>Password</Text>
-        <TextInput
-          value={password}
-          onChangeText={onPasswordChange}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="current-password"
-          secureTextEntry
-          style={styles.input}
-          placeholder="Enter your password"
-          placeholderTextColor={palette.subtle}
-        />
-      </View>
+            <Pressable
+              onPress={onBiometricSubmit}
+              disabled={biometricLoading}
+              style={[styles.secondaryButton, biometricLoading && styles.buttonDisabled]}
+            >
+              {biometricLoading ? (
+                <ActivityIndicator color={palette.accent} />
+              ) : (
+                <Text style={styles.secondaryButtonText}>{biometricLabel}</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : null
+      }
+    >
+      {({ registerField, focusField, blurField }) => (
+        <>
+          <View {...registerField("username")}>
+            <Text style={styles.fieldLabel}>Username</Text>
+            <TextInput
+              value={username}
+              onChangeText={onUsernameChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+              returnKeyType="next"
+              style={styles.input}
+              placeholder="Enter your username"
+              placeholderTextColor={palette.subtle}
+              onFocus={() => focusField("username")}
+              onBlur={() => blurField("username")}
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
+          </View>
+
+          <View {...registerField("password")}>
+            <Text style={styles.fieldLabel}>Password</Text>
+            <TextInput
+              ref={passwordRef}
+              value={password}
+              onChangeText={onPasswordChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="current-password"
+              secureTextEntry
+              returnKeyType="done"
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor={palette.subtle}
+              onFocus={() => focusField("password")}
+              onBlur={() => blurField("password")}
+              onSubmitEditing={() => void onSubmit()}
+            />
+          </View>
+
+          {biometricAvailable ? (
+            <Pressable
+              onPress={() => void onRememberDeviceChange(!rememberDevice)}
+              style={styles.rememberToggle}
+            >
+              <View style={[styles.rememberIndicator, rememberDevice && styles.rememberIndicatorActive]}>
+                {rememberDevice ? <View style={styles.rememberIndicatorDot} /> : null}
+              </View>
+
+              <View style={styles.rememberCopy}>
+                <Text style={styles.rememberTitle}>Remember this device</Text>
+                <Text style={styles.rememberBody}>
+                  Save your sign-in for {biometricMethod} after a successful password login.
+                </Text>
+              </View>
+            </Pressable>
+          ) : null}
+
+          {rememberedUsername && !biometricReady ? (
+            <Text style={styles.savedSigninHint}>
+              Saved sign-in is not ready. Sign in with your password to set up {biometricMethod.toLowerCase()} again.
+            </Text>
+          ) : null}
+        </>
+      )}
     </AuthShell>
   );
 }
@@ -471,11 +728,18 @@ function ChangePasswordScreen({
   onConfirmPasswordChange: (value: string) => void;
   onSubmit: () => void;
 }) {
+  const newPasswordRef = useRef<TextInput | null>(null);
+  const confirmPasswordRef = useRef<TextInput | null>(null);
+
   return (
     <AuthShell
       eyebrow="Security update"
-      title="Protect the week before you enter it."
-      subtitle="Your account requires a password change before the mobile dashboard unlocks."
+      title="Finish the secure setup."
+      subtitle="Update your password in a cleaner, scrollable form before entering the dashboard."
+      highlights={[
+        { label: "Step", value: "One-time reset" },
+        { label: "Result", value: "Secure access" },
+      ]}
       panelTitle="Change password"
       panelSubtitle="Choose a new password for this account. You will use it for future sign-ins."
       footerNote="The new password is applied immediately after this update succeeds."
@@ -484,50 +748,68 @@ function ChangePasswordScreen({
       buttonLabel="Save Password"
       onSubmit={onSubmit}
     >
-      <View>
-        <Text style={styles.fieldLabel}>Current password</Text>
-        <TextInput
-          value={currentPassword}
-          onChangeText={onCurrentPasswordChange}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="current-password"
-          secureTextEntry
-          style={styles.input}
-          placeholder="Current password"
-          placeholderTextColor={palette.subtle}
-        />
-      </View>
+      {({ registerField, focusField, blurField }) => (
+        <>
+          <View {...registerField("currentPassword")}>
+            <Text style={styles.fieldLabel}>Current password</Text>
+            <TextInput
+              value={currentPassword}
+              onChangeText={onCurrentPasswordChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="current-password"
+              secureTextEntry
+              returnKeyType="next"
+              style={styles.input}
+              placeholder="Current password"
+              placeholderTextColor={palette.subtle}
+              onFocus={() => focusField("currentPassword")}
+              onBlur={() => blurField("currentPassword")}
+              onSubmitEditing={() => newPasswordRef.current?.focus()}
+            />
+          </View>
 
-      <View>
-        <Text style={styles.fieldLabel}>New password</Text>
-        <TextInput
-          value={newPassword}
-          onChangeText={onNewPasswordChange}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="password-new"
-          secureTextEntry
-          style={styles.input}
-          placeholder="New password"
-          placeholderTextColor={palette.subtle}
-        />
-      </View>
+          <View {...registerField("newPassword")}>
+            <Text style={styles.fieldLabel}>New password</Text>
+            <TextInput
+              ref={newPasswordRef}
+              value={newPassword}
+              onChangeText={onNewPasswordChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="password-new"
+              secureTextEntry
+              returnKeyType="next"
+              style={styles.input}
+              placeholder="New password"
+              placeholderTextColor={palette.subtle}
+              onFocus={() => focusField("newPassword")}
+              onBlur={() => blurField("newPassword")}
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+            />
+          </View>
 
-      <View>
-        <Text style={styles.fieldLabel}>Confirm new password</Text>
-        <TextInput
-          value={confirmPassword}
-          onChangeText={onConfirmPasswordChange}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="password-new"
-          secureTextEntry
-          style={styles.input}
-          placeholder="Confirm new password"
-          placeholderTextColor={palette.subtle}
-        />
-      </View>
+          <View {...registerField("confirmPassword")}>
+            <Text style={styles.fieldLabel}>Confirm new password</Text>
+            <TextInput
+              ref={confirmPasswordRef}
+              value={confirmPassword}
+              onChangeText={onConfirmPasswordChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="password-new"
+              secureTextEntry
+              returnKeyType="done"
+              style={styles.input}
+              placeholder="Confirm new password"
+              placeholderTextColor={palette.subtle}
+              onFocus={() => focusField("confirmPassword")}
+              onBlur={() => blurField("confirmPassword")}
+              onSubmitEditing={() => void onSubmit()}
+            />
+          </View>
+        </>
+      )}
     </AuthShell>
   );
 }
@@ -816,6 +1098,12 @@ export default function App() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricReady, setBiometricReady] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [rememberedUsername, setRememberedUsername] = useState("");
+  const [biometricLabel, setBiometricLabel] = useState("Sign in with biometrics");
 
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -831,8 +1119,48 @@ export default function App() {
   const instructorScope =
     user?.role === "instructor" && user.instructorName ? user.instructorName : null;
 
+  function resetSessionState() {
+    setToken(null);
+    setUser(null);
+    setSchedules([]);
+    setAnnouncements([]);
+    setScheduleError(null);
+    setSearch("");
+    setSelectedDay("All");
+    setSelectedClassType("All");
+    setPassword("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }
+
+  async function disableBiometricSignIn(keepRememberedUser = true) {
+    if (keepRememberedUser) {
+      await Promise.all([clearBiometricCredentials(), setBiometricRememberEnabled(false)]);
+    } else {
+      await clearRememberedLogin();
+      setRememberedUsername("");
+    }
+
+    setRememberDevice(false);
+    setBiometricReady(false);
+  }
+
   async function restoreSession() {
-    const savedToken = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+    const [savedToken, savedRememberedUsername, biometricEnabled, support] = await Promise.all([
+      getSessionToken(),
+      getStoredRememberedUsername(),
+      isBiometricRememberEnabled(),
+      getBiometricSupport(),
+    ]);
+
+    setRememberedUsername(savedRememberedUsername);
+    setRememberDevice(biometricEnabled);
+    setBiometricAvailable(support.available);
+    setBiometricLabel(support.label);
+    setBiometricReady(support.available && biometricEnabled && Boolean(savedRememberedUsername));
+    setUsername((current) => current || savedRememberedUsername);
+
     if (!savedToken) {
       setBootstrapping(false);
       return;
@@ -841,41 +1169,35 @@ export default function App() {
     try {
       const me = await getMe(savedToken);
       if (!me) {
-        await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
-        setToken(null);
-        setUser(null);
+        await clearSessionToken();
+        resetSessionState();
       } else {
         setToken(savedToken);
         setUser(me);
       }
     } catch {
-      await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
-      setToken(null);
-      setUser(null);
+      await clearSessionToken();
+      resetSessionState();
     } finally {
       setBootstrapping(false);
     }
   }
 
   async function persistSession(response: AuthResponse) {
-    await AsyncStorage.setItem(TOKEN_STORAGE_KEY, response.accessToken);
+    await setSessionToken(response.accessToken);
     setToken(response.accessToken);
     setUser(response.user);
   }
 
   async function clearSession() {
-    await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
-    setToken(null);
-    setUser(null);
-    setSchedules([]);
-    setAnnouncements([]);
-    setSearch("");
-    setSelectedDay("All");
-    setSelectedClassType("All");
-    setPassword("");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    await Promise.all([clearSessionToken(), clearRememberedLogin()]);
+    resetSessionState();
+    setAuthError(null);
+    setPasswordError(null);
+    setUsername("");
+    setRememberedUsername("");
+    setRememberDevice(false);
+    setBiometricReady(false);
   }
 
   async function loadDashboardData(showRefreshState = false) {
@@ -914,6 +1236,141 @@ export default function App() {
   useEffect(() => {
     void restoreSession();
   }, []);
+
+  async function handleRememberDeviceChange(nextValue: boolean) {
+    setRememberDevice(nextValue);
+
+    if (!nextValue && (biometricReady || rememberedUsername)) {
+      await disableBiometricSignIn(false);
+    }
+  }
+
+  async function handlePasswordLogin() {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
+      setAuthError("Username and password are required.");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const response = await login(trimmedUsername, password);
+      await persistSession(response);
+
+      if (rememberDevice && biometricAvailable) {
+        await persistRememberedUsername(trimmedUsername);
+        await setBiometricRememberEnabled(true);
+        setRememberedUsername(trimmedUsername);
+
+        if (!response.user.mustChangePassword) {
+          await saveBiometricCredentials({ username: trimmedUsername, password });
+          setBiometricReady(true);
+        } else {
+          setBiometricReady(false);
+        }
+      } else {
+        await clearRememberedLogin();
+        setRememberedUsername("");
+        setRememberDevice(false);
+        setBiometricReady(false);
+      }
+
+      setPassword("");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Authentication failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleBiometricSignIn() {
+    if (biometricLoading) {
+      return;
+    }
+
+    setBiometricLoading(true);
+    setAuthError(null);
+    try {
+      const support = await getBiometricSupport();
+      setBiometricAvailable(support.available);
+      setBiometricLabel(support.label);
+
+      if (!support.available) {
+        throw new Error("Biometric sign-in is not available on this device.");
+      }
+
+      const savedCredentials = await getBiometricCredentials(getBiometricPrompt(support.label));
+      if (!savedCredentials) {
+        await disableBiometricSignIn(true);
+        setAuthError("Saved biometric sign-in is no longer available. Sign in with your password to set it up again.");
+        return;
+      }
+
+      const response = await login(savedCredentials.username, savedCredentials.password);
+      await persistSession(response);
+      setUsername(savedCredentials.username);
+      setRememberedUsername(savedCredentials.username);
+      setRememberDevice(true);
+      setBiometricReady(true);
+      setPassword("");
+    } catch (error) {
+      if (isBiometricPromptCancelled(error)) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "Biometric sign-in failed";
+      if (isInvalidCredentialsMessage(message)) {
+        await disableBiometricSignIn(true);
+        setAuthError("Saved sign-in details are no longer valid. Sign in with your password to set up biometrics again.");
+      } else {
+        setAuthError(message);
+      }
+    } finally {
+      setBiometricLoading(false);
+    }
+  }
+
+  async function handlePasswordChange() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("All password fields are required.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError(null);
+    try {
+      const response = await changePassword(token as string, currentPassword, newPassword);
+      await persistSession(response);
+
+      if (rememberDevice && biometricAvailable) {
+        await persistRememberedUsername(response.user.username);
+        await setBiometricRememberEnabled(true);
+        await saveBiometricCredentials({ username: response.user.username, password: newPassword });
+        setRememberedUsername(response.user.username);
+        setBiometricReady(true);
+      } else {
+        await clearRememberedLogin();
+        setRememberedUsername("");
+        setRememberDevice(false);
+        setBiometricReady(false);
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "Password update failed");
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!token || !user || user.mustChangePassword) {
@@ -981,26 +1438,17 @@ export default function App() {
           error={authError}
           username={username}
           password={password}
+          rememberDevice={rememberDevice}
+          biometricAvailable={biometricAvailable}
+          biometricReady={biometricReady}
+          biometricLoading={biometricLoading}
+          rememberedUsername={rememberedUsername}
+          biometricLabel={biometricLabel}
           onUsernameChange={setUsername}
           onPasswordChange={setPassword}
-          onSubmit={async () => {
-            if (!username.trim() || !password.trim()) {
-              setAuthError("Username and password are required.");
-              return;
-            }
-
-            setAuthLoading(true);
-            setAuthError(null);
-            try {
-              const response = await login(username.trim(), password);
-              await persistSession(response);
-              setPassword("");
-            } catch (error) {
-              setAuthError(error instanceof Error ? error.message : "Authentication failed");
-            } finally {
-              setAuthLoading(false);
-            }
-          }}
+          onRememberDeviceChange={handleRememberDeviceChange}
+          onBiometricSubmit={handleBiometricSignIn}
+          onSubmit={handlePasswordLogin}
         />
       </SafeAreaProvider>
     );
@@ -1018,30 +1466,7 @@ export default function App() {
           onCurrentPasswordChange={setCurrentPassword}
           onNewPasswordChange={setNewPassword}
           onConfirmPasswordChange={setConfirmPassword}
-          onSubmit={async () => {
-            if (!currentPassword || !newPassword || !confirmPassword) {
-              setPasswordError("All password fields are required.");
-              return;
-            }
-            if (newPassword !== confirmPassword) {
-              setPasswordError("New passwords do not match.");
-              return;
-            }
-
-            setPasswordLoading(true);
-            setPasswordError(null);
-            try {
-              const response = await changePassword(token as string, currentPassword, newPassword);
-              await persistSession(response);
-              setCurrentPassword("");
-              setNewPassword("");
-              setConfirmPassword("");
-            } catch (error) {
-              setPasswordError(error instanceof Error ? error.message : "Password update failed");
-            } finally {
-              setPasswordLoading(false);
-            }
-          }}
+          onSubmit={handlePasswordChange}
         />
       </SafeAreaProvider>
     );
@@ -1186,145 +1611,214 @@ export default function App() {
 const styles = StyleSheet.create({
   authSafeArea: {
     flex: 1,
-    backgroundColor: "#081a40",
+    backgroundColor: palette.page,
   },
   authRoot: {
     flex: 1,
-    backgroundColor: "#081a40",
+    backgroundColor: palette.page,
   },
   authBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#081a40",
+    backgroundColor: palette.page,
   },
   authGlowTop: {
-    position: "absolute",
-    width: 320,
-    height: 320,
-    borderRadius: 999,
-    backgroundColor: "rgba(84, 158, 255, 0.22)",
-    top: -120,
-    right: -60,
-  },
-  authGlowBottom: {
     position: "absolute",
     width: 280,
     height: 280,
     borderRadius: 999,
-    backgroundColor: "rgba(78, 235, 197, 0.14)",
-    bottom: -100,
-    left: -40,
+    backgroundColor: "rgba(112, 158, 255, 0.16)",
+    top: -80,
+    right: -40,
   },
-  authScroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingVertical: 24,
-  },
-  authFrame: {
-    alignSelf: "center",
-    gap: 18,
-  },
-  authHeroCard: {
-    borderRadius: radii.xl,
-    overflow: "hidden",
-    padding: 28,
-    justifyContent: "space-between",
-    gap: 22,
-  },
-  authHeroOrbLarge: {
+  authGlowBottom: {
     position: "absolute",
     width: 220,
     height: 220,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    top: -80,
-    right: -50,
+    backgroundColor: "rgba(36, 88, 211, 0.08)",
+    bottom: -60,
+    left: -40,
+  },
+  authScroll: {
+    flexGrow: 1,
+    paddingTop: 12,
+    paddingBottom: 52,
+  },
+  authFrame: {
+    alignSelf: "center",
+    width: "100%",
+    gap: 14,
+  },
+  authHeroCard: {
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    padding: 22,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: "#d8e6fb",
+  },
+  authHeroOrbLarge: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 999,
+    backgroundColor: "rgba(36,88,211,0.08)",
+    top: -30,
+    right: -30,
   },
   authHeroOrbSmall: {
     position: "absolute",
-    width: 120,
-    height: 120,
+    width: 90,
+    height: 90,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    bottom: 20,
-    left: -20,
+    backgroundColor: "rgba(255,255,255,0.78)",
+    bottom: 12,
+    left: -12,
+  },
+  authHeroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
   },
   authHeroEyebrow: {
-    color: "#dce8ff",
+    color: palette.accent,
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 1.3,
+    letterSpacing: 1.2,
+  },
+  authHeroPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: "#edf4ff",
+    borderWidth: 1,
+    borderColor: "#d4e4ff",
+  },
+  authHeroPillText: {
+    color: palette.accentDeep,
+    fontSize: 12,
+    fontWeight: "700",
   },
   authHeroTitle: {
-    color: "#ffffff",
-    fontSize: 34,
+    color: palette.ink,
+    fontSize: 30,
     fontWeight: "800",
-    lineHeight: 40,
-    maxWidth: 420,
+    lineHeight: 36,
+    maxWidth: 360,
   },
   authHeroSubtitle: {
-    color: "rgba(255,255,255,0.86)",
-    fontSize: 16,
-    lineHeight: 24,
-    maxWidth: 460,
+    color: palette.body,
+    fontSize: 15,
+    lineHeight: 22,
+    maxWidth: 380,
   },
-  authStatGrid: {
-    gap: 12,
+  authHighlightRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
-  authStatCard: {
+  authHighlightCard: {
+    minWidth: 132,
     borderRadius: radii.md,
-    padding: 16,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.78)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    gap: 4,
+    borderColor: "#d8e6fb",
+    gap: 2,
   },
-  authStatLabel: {
-    color: "rgba(255,255,255,0.76)",
+  authHighlightLabel: {
+    color: palette.muted,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  authStatValue: {
-    color: "#ffffff",
-    fontSize: 18,
+  authHighlightValue: {
+    color: palette.ink,
+    fontSize: 16,
     fontWeight: "800",
   },
-  authStatMeta: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    lineHeight: 18,
-  },
   authPanel: {
-    borderRadius: radii.xl,
+    borderRadius: radii.lg,
     backgroundColor: palette.panel,
-    padding: 24,
-    gap: 18,
-    justifyContent: "center",
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: palette.line,
   },
   authPanelHeader: {
-    gap: 6,
+    gap: 4,
   },
   authPanelTitle: {
     color: palette.ink,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
   },
   authPanelSubtitle: {
     color: palette.muted,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  authCompactIntro: {
+    gap: 12,
+    paddingBottom: 2,
+  },
+  authCompactEyebrow: {
+    color: palette.accent,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  authCompactTitle: {
+    color: palette.ink,
+    fontSize: 28,
+    fontWeight: "800",
+    lineHeight: 34,
+  },
+  authCompactSubtitle: {
+    color: palette.body,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  authCompactHighlightRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  authCompactHighlightChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: "#edf4ff",
+    borderWidth: 1,
+    borderColor: "#d4e4ff",
+    gap: 2,
+  },
+  authCompactHighlightLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  authCompactHighlightValue: {
+    color: palette.accentDeep,
+    fontSize: 13,
+    fontWeight: "800",
   },
   authFootnote: {
     borderRadius: radii.md,
-    padding: 14,
-    backgroundColor: "#eef4fb",
+    padding: 12,
+    backgroundColor: "#f5f8fc",
   },
   authFootnoteText: {
     color: palette.body,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 18,
   },
   appRoot: {
     flex: 1,
@@ -1397,6 +1891,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: palette.ink,
   },
+  rememberToggle: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "#dbe4f0",
+    backgroundColor: "#f8fbff",
+    padding: 14,
+  },
+  rememberIndicator: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "#9db5d9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  rememberIndicatorActive: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  rememberIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#ffffff",
+  },
+  rememberCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  rememberTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  rememberBody: {
+    color: palette.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  savedSigninHint: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   primaryButton: {
     backgroundColor: palette.ink,
     minHeight: 52,
@@ -1404,8 +1947,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "#bfd2fa",
+    backgroundColor: "#edf4ff",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   primaryButtonText: {
     color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  authSecondaryAction: {
+    gap: 8,
+  },
+  savedSigninLabel: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  secondaryButtonText: {
+    color: palette.accentDeep,
     fontSize: 15,
     fontWeight: "800",
   },

@@ -29,6 +29,21 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Schedule Manager Mobile to use Face ID for quick sign-in."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Allow Schedule Manager Mobile to securely access your saved sign-in details."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": false
     },
